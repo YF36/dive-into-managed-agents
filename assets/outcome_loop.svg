@@ -1,0 +1,144 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif">
+  <defs>
+    <linearGradient id="indigoGO" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#a5b4fc"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+    <linearGradient id="emeraldGO" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#6ee7b7"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+    <linearGradient id="amberGO" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fcd34d"/>
+      <stop offset="100%" stop-color="#f59e0b"/>
+    </linearGradient>
+    <linearGradient id="roseGO" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fda4af"/>
+      <stop offset="100%" stop-color="#f43f5e"/>
+    </linearGradient>
+    <filter id="softO" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="4"/>
+      <feOffset dx="0" dy="3"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.12"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <marker id="arrO" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+    </marker>
+    <marker id="arrOI" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#6366f1"/>
+    </marker>
+    <marker id="arrOG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#10b981"/>
+    </marker>
+    <marker id="arrOR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#f43f5e"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="760" fill="#fafbfc"/>
+
+  <!-- Title -->
+  <text x="600" y="44" text-anchor="middle" font-size="26" font-weight="700" fill="#0f172a">Define Outcomes · 目标驱动执行</text>
+  <text x="600" y="70" text-anchor="middle" font-size="14" fill="#64748b">独立 context 的 grader 对照 rubric 评判  ·  未满足则让 agent 继续迭代</text>
+
+  <!-- Input: define_outcome -->
+  <g filter="url(#softO)">
+    <rect x="380" y="100" width="440" height="100" rx="12" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  </g>
+  <text x="600" y="128" text-anchor="middle" font-size="13" font-weight="700" fill="#0f172a">user.define_outcome</text>
+  <g>
+    <rect x="400" y="140" width="200" height="50" rx="6" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1"/>
+    <text x="410" y="158" font-size="11" font-weight="600" fill="#1d4ed8">description</text>
+    <text x="410" y="174" font-size="10" fill="#475569">本轮要做什么  ·  交付什么</text>
+  </g>
+  <g>
+    <rect x="610" y="140" width="200" height="50" rx="6" fill="#fff1f2" stroke="#fecdd3" stroke-width="1"/>
+    <text x="620" y="158" font-size="11" font-weight="600" fill="#9f1239">rubric</text>
+    <text x="620" y="174" font-size="10" fill="#475569">按什么标准打分  ·  原子化 · 可验证</text>
+  </g>
+
+  <path d="M 600 210 L 600 240" stroke="#64748b" stroke-width="1.8" marker-end="url(#arrO)"/>
+  <text x="614" y="232" font-size="10" fill="#64748b" font-style="italic">max_iter=N</text>
+
+  <!-- Iteration loop container -->
+  <g filter="url(#softO)">
+    <rect x="80" y="250" width="1040" height="340" rx="14" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+  </g>
+  <text x="600" y="278" text-anchor="middle" font-size="13" font-weight="600" fill="#475569">Outcome 迭代循环</text>
+
+  <!-- Agent (left) -->
+  <g filter="url(#softO)">
+    <rect x="130" y="300" width="380" height="240" rx="14" fill="url(#indigoGO)"/>
+  </g>
+  <text x="320" y="328" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">🧠 Agent （主 context）</text>
+  <text x="320" y="348" text-anchor="middle" font-size="11" fill="#e0e7ff">看到 description + 当前 rubric 反馈</text>
+
+  <g>
+    <rect x="150" y="362" width="340" height="40" rx="6" fill="#ffffff" opacity="0.92"/>
+    <text x="165" y="378" font-size="11" font-weight="600" fill="#4f46e5">agent.message</text>
+    <text x="165" y="393" font-size="10" fill="#475569">我要先分析数据 · 再建模 · 最后导出</text>
+  </g>
+  <g>
+    <rect x="150" y="408" width="340" height="40" rx="6" fill="#ffffff" opacity="0.92"/>
+    <text x="165" y="424" font-size="11" font-weight="600" fill="#4f46e5">agent.tool_use  (bash / file ops)</text>
+    <text x="165" y="439" font-size="10" fill="#475569">跑代码 · 读写文件 · 调 MCP</text>
+  </g>
+  <g>
+    <rect x="150" y="454" width="340" height="40" rx="6" fill="#ffffff" opacity="0.92"/>
+    <text x="165" y="470" font-size="11" font-weight="600" fill="#4f46e5">agent.message  (交付)</text>
+    <text x="165" y="485" font-size="10" fill="#475569">本轮产出  ·  例如 model.xlsx · report.md</text>
+  </g>
+  <text x="320" y="520" text-anchor="middle" font-size="10.5" fill="#e0e7ff" font-style="italic">看得到 rubric 的评判反馈，但看不到 grader 的内部推理</text>
+
+  <!-- Grader (right) -->
+  <g filter="url(#softO)">
+    <rect x="690" y="300" width="380" height="240" rx="14" fill="url(#emeraldGO)"/>
+  </g>
+  <text x="880" y="328" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">👁️ Grader （独立 context）</text>
+  <text x="880" y="348" text-anchor="middle" font-size="11" fill="#d1fae5">只看 rubric + agent 产出  ·  不看 agent 思考</text>
+
+  <g>
+    <rect x="710" y="362" width="340" height="40" rx="6" fill="#ffffff" opacity="0.92"/>
+    <text x="725" y="378" font-size="11" font-weight="600" fill="#047857">逐条对照 rubric</text>
+    <text x="725" y="393" font-size="10" fill="#475569">✓ revenue 5 年历史  ✓ terminal growth ≤ GDP</text>
+  </g>
+  <g>
+    <rect x="710" y="408" width="340" height="40" rx="6" fill="#ffffff" opacity="0.92"/>
+    <text x="725" y="424" font-size="11" font-weight="600" fill="#047857">产出评估结论</text>
+    <text x="725" y="439" font-size="10" fill="#475569">satisfied · needs_revision + reason</text>
+  </g>
+  <g>
+    <rect x="710" y="454" width="340" height="40" rx="6" fill="#ffffff" opacity="0.92"/>
+    <text x="725" y="470" font-size="11" font-weight="600" fill="#047857">发出事件</text>
+    <text x="725" y="485" font-size="10" fill="#475569">outcome.evaluation  iteration=k</text>
+  </g>
+  <text x="880" y="520" text-anchor="middle" font-size="10.5" fill="#d1fae5" font-style="italic">可替换 · 未来可换不同模型 / 不同策略 / 人工介入</text>
+
+  <!-- Arrows between agent and grader -->
+  <path d="M 510 400 L 690 400" stroke="#10b981" stroke-width="2" fill="none" marker-end="url(#arrOG)"/>
+  <text x="600" y="392" text-anchor="middle" font-size="11" fill="#059669" font-weight="600">产出 · artifact</text>
+
+  <path d="M 690 470 L 510 470" stroke="#6366f1" stroke-width="2" fill="none" marker-end="url(#arrOI)" stroke-dasharray="5,3"/>
+  <text x="600" y="462" text-anchor="middle" font-size="11" fill="#4f46e5" font-weight="600">needs_revision · 再跑一轮</text>
+
+  <!-- Bottom: exit conditions -->
+  <path d="M 600 590 L 600 620" stroke="#64748b" stroke-width="1.8" marker-end="url(#arrO)"/>
+
+  <g filter="url(#softO)">
+    <rect x="80" y="630" width="500" height="100" rx="12" fill="#ecfdf5" stroke="#6ee7b7" stroke-width="1.5"/>
+  </g>
+  <text x="330" y="658" text-anchor="middle" font-size="13" font-weight="700" fill="#059669">✓ satisfied</text>
+  <text x="330" y="678" text-anchor="middle" font-size="11" fill="#047857">所有 rubric 项通过</text>
+  <text x="330" y="698" text-anchor="middle" font-size="11" fill="#047857">session.status_idle · end_turn</text>
+  <text x="330" y="716" text-anchor="middle" font-size="10" fill="#64748b" font-style="italic">交付产物 = 最后一轮 artifact</text>
+
+  <g filter="url(#softO)">
+    <rect x="620" y="630" width="500" height="100" rx="12" fill="#fff1f2" stroke="#fda4af" stroke-width="1.5"/>
+  </g>
+  <text x="870" y="658" text-anchor="middle" font-size="13" font-weight="700" fill="#be123c">✗ max_iter 耗尽</text>
+  <text x="870" y="678" text-anchor="middle" font-size="11" fill="#9f1239">仍未满足 rubric</text>
+  <text x="870" y="698" text-anchor="middle" font-size="11" fill="#9f1239">session.status_idle · end_turn + 未达成标记</text>
+  <text x="870" y="716" text-anchor="middle" font-size="10" fill="#64748b" font-style="italic">客户端决定：再调一轮 · 降级交付 · 人工接管</text>
+
+</svg>

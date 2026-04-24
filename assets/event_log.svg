@@ -1,0 +1,175 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 780" font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif">
+  <defs>
+    <linearGradient id="skyG" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#7dd3fc"/>
+      <stop offset="100%" stop-color="#0ea5e9"/>
+    </linearGradient>
+    <linearGradient id="indigoG" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#a5b4fc"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+    <linearGradient id="emeraldG" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#6ee7b7"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+    <linearGradient id="amberG" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fcd34d"/>
+      <stop offset="100%" stop-color="#f59e0b"/>
+    </linearGradient>
+    <linearGradient id="roseG" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fda4af"/>
+      <stop offset="100%" stop-color="#f43f5e"/>
+    </linearGradient>
+    <filter id="softE" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="4"/>
+      <feOffset dx="0" dy="3"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.12"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <marker id="arrE" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="780" fill="#fafbfc"/>
+
+  <!-- Title -->
+  <text x="600" y="48" text-anchor="middle" font-size="26" font-weight="700" fill="#0f172a">事件模型 · 三件合一</text>
+  <text x="600" y="74" text-anchor="middle" font-size="14" fill="#64748b">协议 = 状态 = 持久化  ——  同一份 append-only 日志的三种用法</text>
+
+  <!-- Left: Four namespaces -->
+  <text x="180" y="128" text-anchor="middle" font-size="14" font-weight="600" fill="#4f46e5">四个事件命名空间</text>
+  <g filter="url(#softE)">
+    <rect x="50" y="148" width="260" height="62" rx="10" fill="url(#indigoG)"/>
+  </g>
+  <text x="70" y="175" font-size="13" font-weight="600" fill="#ffffff">user.*</text>
+  <text x="70" y="195" font-size="11" fill="#e0e7ff">message · tool_result · define_outcome</text>
+
+  <g filter="url(#softE)">
+    <rect x="50" y="220" width="260" height="80" rx="10" fill="url(#emeraldG)"/>
+  </g>
+  <text x="70" y="247" font-size="13" font-weight="600" fill="#ffffff">agent.*</text>
+  <text x="70" y="267" font-size="11" fill="#d1fae5">message · tool_use · custom_tool_use</text>
+  <text x="70" y="284" font-size="11" fill="#d1fae5">thread_context_compacted · delegation</text>
+
+  <g filter="url(#softE)">
+    <rect x="50" y="310" width="260" height="80" rx="10" fill="url(#amberG)"/>
+  </g>
+  <text x="70" y="337" font-size="13" font-weight="600" fill="#ffffff">session.*</text>
+  <text x="70" y="357" font-size="11" fill="#fef3c7">status_idle · status_running</text>
+  <text x="70" y="374" font-size="11" fill="#fef3c7">status_rescheduling · terminated</text>
+
+  <g filter="url(#softE)">
+    <rect x="50" y="400" width="260" height="80" rx="10" fill="url(#roseG)"/>
+  </g>
+  <text x="70" y="427" font-size="13" font-weight="600" fill="#ffffff">span.*</text>
+  <text x="70" y="447" font-size="11" fill="#ffe4e6">model_request_started / finished</text>
+  <text x="70" y="464" font-size="11" fill="#ffe4e6">observability / billing trace</text>
+
+  <!-- Arrows from namespaces to center log -->
+  <path d="M 310 180 C 380 180, 380 260, 450 260" stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#arrE)"/>
+  <path d="M 310 260 L 450 340" stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#arrE)"/>
+  <path d="M 310 350 L 450 420" stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#arrE)"/>
+  <path d="M 310 440 C 380 490, 390 490, 450 500" stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#arrE)"/>
+
+  <!-- Center: Event Log -->
+  <text x="580" y="128" text-anchor="middle" font-size="14" font-weight="600" fill="#0369a1">Append-Only Event Log</text>
+  <g filter="url(#softE)">
+    <rect x="450" y="148" width="260" height="476" rx="12" fill="#ffffff" stroke="#7dd3fc" stroke-width="2"/>
+  </g>
+
+  <!-- Events list -->
+  <g font-size="11" fill="#0f172a">
+    <rect x="462" y="160" width="236" height="26" rx="5" fill="#eff6ff"/>
+    <text x="470" y="178">user.message · sevt_001</text>
+
+    <rect x="462" y="190" width="236" height="26" rx="5" fill="#ecfdf5"/>
+    <text x="470" y="208">agent.message · sevt_002</text>
+
+    <rect x="462" y="220" width="236" height="26" rx="5" fill="#ecfdf5"/>
+    <text x="470" y="238">agent.tool_use · sevt_003</text>
+
+    <rect x="462" y="250" width="236" height="26" rx="5" fill="#eff6ff"/>
+    <text x="470" y="268">user.tool_result · sevt_004</text>
+
+    <rect x="462" y="280" width="236" height="26" rx="5" fill="#ecfdf5"/>
+    <text x="470" y="298">agent.message · sevt_005</text>
+
+    <rect x="462" y="310" width="236" height="26" rx="5" fill="#fff7ed"/>
+    <text x="470" y="328">span.model_request_started</text>
+
+    <rect x="462" y="340" width="236" height="26" rx="5" fill="#ecfdf5"/>
+    <text x="470" y="358">agent.thread_context_compacted</text>
+
+    <rect x="462" y="370" width="236" height="26" rx="5" fill="#fef2f2"/>
+    <text x="470" y="388">session.status_rescheduling</text>
+
+    <rect x="462" y="400" width="236" height="26" rx="5" fill="#fff7ed"/>
+    <text x="470" y="418">span.model_request_finished</text>
+
+    <rect x="462" y="430" width="236" height="26" rx="5" fill="#ecfdf5"/>
+    <text x="470" y="448">agent.message · sevt_010</text>
+
+    <rect x="462" y="460" width="236" height="26" rx="5" fill="#fff7ed"/>
+    <text x="470" y="478">session.status_idle</text>
+
+    <text x="580" y="508" text-anchor="middle" font-size="13" fill="#94a3b8">⋮</text>
+
+    <rect x="462" y="520" width="236" height="26" rx="5" fill="#eff6ff" stroke="#bae6fd" stroke-width="1" stroke-dasharray="3,2"/>
+    <text x="470" y="538">user.message · sevt_n  (new)</text>
+  </g>
+
+  <text x="580" y="578" text-anchor="middle" font-size="11" fill="#64748b">每条事件都有 id · processed_at</text>
+  <text x="580" y="596" text-anchor="middle" font-size="11" fill="#64748b">可按 id 去重，可按时间切片</text>
+  <text x="580" y="614" text-anchor="middle" font-size="11" font-weight="600" fill="#0369a1">这份日志本身 = 真相之源</text>
+
+  <!-- Right: Three uses -->
+  <text x="970" y="128" text-anchor="middle" font-size="14" font-weight="600" fill="#0f172a">三种用法</text>
+
+  <g filter="url(#softE)">
+    <rect x="810" y="148" width="320" height="120" rx="12" fill="#ffffff" stroke="#c7d2fe" stroke-width="2"/>
+  </g>
+  <circle cx="836" cy="174" r="16" fill="url(#indigoG)"/>
+  <text x="836" y="179" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">①</text>
+  <text x="862" y="172" font-size="13" font-weight="600" fill="#4f46e5">协议 · Protocol</text>
+  <text x="862" y="190" font-size="11" fill="#475569">GET /events/stream (SSE · 实时)</text>
+  <text x="862" y="206" font-size="11" fill="#475569">GET /events (分页 · 历史)</text>
+  <text x="862" y="222" font-size="11" fill="#475569">POST /events (user.* 入栈)</text>
+  <text x="820" y="252" font-size="11" fill="#64748b" font-style="italic">不需要独立的 request/response schema</text>
+
+  <g filter="url(#softE)">
+    <rect x="810" y="282" width="320" height="120" rx="12" fill="#ffffff" stroke="#a7f3d0" stroke-width="2"/>
+  </g>
+  <circle cx="836" cy="308" r="16" fill="url(#emeraldG)"/>
+  <text x="836" y="313" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">②</text>
+  <text x="862" y="306" font-size="13" font-weight="600" fill="#059669">状态 · State Projection</text>
+  <text x="862" y="324" font-size="11" fill="#475569">status = 日志最后一条 session.status_*</text>
+  <text x="862" y="340" font-size="11" fill="#475569">context = 日志按需切片</text>
+  <text x="862" y="356" font-size="11" fill="#475569">断线重连 = 按 event id 去重</text>
+  <text x="820" y="386" font-size="11" fill="#64748b" font-style="italic">不需要独立的状态查询 endpoint</text>
+
+  <g filter="url(#softE)">
+    <rect x="810" y="416" width="320" height="120" rx="12" fill="#ffffff" stroke="#fda4af" stroke-width="2"/>
+  </g>
+  <circle cx="836" cy="442" r="16" fill="url(#roseG)"/>
+  <text x="836" y="447" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">③</text>
+  <text x="862" y="440" font-size="13" font-weight="600" fill="#be123c">持久化 · Persistence</text>
+  <text x="862" y="458" font-size="11" fill="#475569">审计 / 回放 / resume</text>
+  <text x="862" y="474" font-size="11" fill="#475569">跨 harness 版本可读</text>
+  <text x="862" y="490" font-size="11" fill="#475569">可观测性 · 计费 trace</text>
+  <text x="820" y="520" font-size="11" fill="#64748b" font-style="italic">不需要独立的 snapshot / backup 逻辑</text>
+
+  <!-- Arrows from log to uses -->
+  <path d="M 710 200 L 810 208" stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#arrE)"/>
+  <path d="M 710 340 L 810 342" stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#arrE)"/>
+  <path d="M 710 480 L 810 476" stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#arrE)"/>
+
+  <!-- Bottom caption -->
+  <g filter="url(#softE)">
+    <rect x="150" y="670" width="900" height="80" rx="12" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+  </g>
+  <text x="600" y="698" text-anchor="middle" font-size="13" font-weight="600" fill="#0f172a">三者不是「协作」，而是同一个对象的三种用法</text>
+  <text x="600" y="720" text-anchor="middle" font-size="11" fill="#475569">状态和数据库不一致 · 缓存失效 · 状态丢失 · 审计与业务漂移  —— 这些问题「物理上」就不存在</text>
+  <text x="600" y="738" text-anchor="middle" font-size="11" fill="#64748b" font-style="italic">Write path 去重（客户端按 id） · Read path 重放（日志即可回溯）</text>
+
+</svg>

@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif">
+  <defs>
+    <linearGradient id="indigoGrad2" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#a5b4fc"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+    <linearGradient id="emeraldGrad2" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#6ee7b7"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+    <linearGradient id="amberGrad2" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fcd34d"/>
+      <stop offset="100%" stop-color="#f59e0b"/>
+    </linearGradient>
+    <linearGradient id="roseGrad2" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fda4af"/>
+      <stop offset="100%" stop-color="#f43f5e"/>
+    </linearGradient>
+    <linearGradient id="darkGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#64748b"/>
+      <stop offset="100%" stop-color="#334155"/>
+    </linearGradient>
+    <filter id="soft2" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="4"/>
+      <feOffset dx="0" dy="3" result="offsetblur"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.12"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+    </marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#f43f5e"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="800" fill="#fafbfc"/>
+
+  <!-- Title -->
+  <text x="600" y="48" text-anchor="middle" font-size="26" font-weight="700" fill="#0f172a">三条架构决策 · 从「宠物」到「牛群」</text>
+  <text x="600" y="74" text-anchor="middle" font-size="14" fill="#64748b">把 harness、状态、凭证从单容器里逐一搬出</text>
+
+  <!-- "Before" side -->
+  <text x="200" y="120" text-anchor="middle" font-size="14" font-weight="600" fill="#be123c">Before · 单容器形态</text>
+  <g filter="url(#soft2)">
+    <rect x="60" y="140" width="280" height="300" rx="14" fill="#fff1f2" stroke="#fda4af" stroke-width="2" stroke-dasharray="4,3"/>
+  </g>
+  <text x="200" y="170" text-anchor="middle" font-size="13" font-weight="600" fill="#9f1239">Pet Container</text>
+  <text x="200" y="190" text-anchor="middle" font-size="11" fill="#be123c">「容器挂掉 = 会话全丢」</text>
+
+  <g>
+    <rect x="80" y="210" width="240" height="50" rx="8" fill="#ffffff" stroke="#fecaca" stroke-width="1.5"/>
+    <text x="200" y="240" text-anchor="middle" font-size="12" font-weight="600" fill="#334155">Harness 循环</text>
+  </g>
+  <g>
+    <rect x="80" y="270" width="240" height="50" rx="8" fill="#ffffff" stroke="#fecaca" stroke-width="1.5"/>
+    <text x="200" y="300" text-anchor="middle" font-size="12" font-weight="600" fill="#334155">会话状态</text>
+  </g>
+  <g>
+    <rect x="80" y="330" width="240" height="50" rx="8" fill="#ffffff" stroke="#fecaca" stroke-width="1.5"/>
+    <text x="200" y="360" text-anchor="middle" font-size="12" font-weight="600" fill="#334155">工具执行 · 凭证</text>
+  </g>
+  <text x="200" y="410" text-anchor="middle" font-size="11" fill="#be123c">❌ 调试要进用户容器 · 安全边界与运维打架</text>
+
+  <!-- Large arrow -->
+  <g transform="translate(410,270)">
+    <path d="M 0 0 L 60 0 L 60 -15 L 95 15 L 60 45 L 60 30 L 0 30 Z" fill="url(#indigoGrad2)" opacity="0.9"/>
+    <text x="48" y="70" text-anchor="middle" font-size="12" font-weight="600" fill="#4f46e5">解耦</text>
+  </g>
+
+  <!-- "After" side -->
+  <text x="800" y="120" text-anchor="middle" font-size="14" font-weight="600" fill="#047857">After · 三件分离</text>
+
+  <!-- (1) Harness out -->
+  <g filter="url(#soft2)">
+    <rect x="560" y="140" width="580" height="90" rx="12" fill="url(#indigoGrad2)"/>
+  </g>
+  <text x="580" y="165" font-size="11" font-weight="700" fill="#ffffff">① Harness 搬出容器 · 退居编排层</text>
+  <text x="580" y="188" font-size="11" fill="#e0e7ff">无状态 · 水平扩展 · 容器崩溃只是一次 tool-call 失败</text>
+  <text x="580" y="210" font-size="11" fill="#e0e7ff" font-style="italic">execute(name, input) → string   ——  sandbox 与别的工具无异</text>
+  <text x="1115" y="220" text-anchor="end" font-size="16" font-weight="700" fill="#ffffff">🧠</text>
+
+  <!-- (2) Session external -->
+  <g filter="url(#soft2)">
+    <rect x="560" y="245" width="580" height="90" rx="12" fill="url(#emeraldGrad2)"/>
+  </g>
+  <text x="580" y="270" font-size="11" font-weight="700" fill="#ffffff">② Session 外置为 append-only 事件日志</text>
+  <text x="580" y="293" font-size="11" fill="#d1fae5">日志即状态 · 断线重连 = 按 event id 去重</text>
+  <text x="580" y="315" font-size="11" fill="#d1fae5" font-style="italic">getEvents()  ——  切片接口，compaction / 回放都在 harness 层</text>
+  <text x="1115" y="325" text-anchor="end" font-size="16" font-weight="700" fill="#ffffff">💾</text>
+
+  <!-- (3) Credentials out -->
+  <g filter="url(#soft2)">
+    <rect x="560" y="350" width="580" height="90" rx="12" fill="url(#roseGrad2)"/>
+  </g>
+  <text x="580" y="375" font-size="11" font-weight="700" fill="#ffffff">③ 凭证永不进沙箱 · 走 Vault + Proxy 注入</text>
+  <text x="580" y="398" font-size="11" fill="#ffe4e6">Claude 能接触的世界里物理上不存在凭证 · 免疫 prompt injection</text>
+  <text x="580" y="420" font-size="11" fill="#ffe4e6" font-style="italic">Git token · OAuth · refresh 自动续期  ——  容器里设不了环境变量</text>
+  <text x="1115" y="430" text-anchor="end" font-size="16" font-weight="700" fill="#ffffff">🔐</text>
+
+  <!-- Bottom benefit cards -->
+  <g filter="url(#soft2)">
+    <rect x="60" y="490" width="350" height="250" rx="12" fill="#ffffff" stroke="#c7d2fe" stroke-width="1.5"/>
+  </g>
+  <text x="235" y="520" text-anchor="middle" font-size="14" font-weight="700" fill="#4f46e5">性能收益</text>
+  <text x="80" y="552" font-size="12" font-weight="600" fill="#0f172a">TTFT p50 ↓ 60%</text>
+  <text x="80" y="572" font-size="11" fill="#475569">推理不必等容器 provisioning</text>
+  <text x="80" y="600" font-size="12" font-weight="600" fill="#0f172a">TTFT p95 ↓ 90%+</text>
+  <text x="80" y="620" font-size="11" fill="#475569">harness 先跑起来，tool call 时再接容器</text>
+  <text x="80" y="648" font-size="12" font-weight="600" fill="#0f172a">容错粒度从「会话」降到「工具调用」</text>
+  <text x="80" y="668" font-size="11" fill="#475569">session rescheduling ：可重试错误由编排层处理</text>
+  <text x="80" y="696" font-size="11" fill="#475569" font-style="italic">容器失败 ≠ 会话失败</text>
+
+  <g filter="url(#soft2)">
+    <rect x="430" y="490" width="350" height="250" rx="12" fill="#ffffff" stroke="#a7f3d0" stroke-width="1.5"/>
+  </g>
+  <text x="605" y="520" text-anchor="middle" font-size="14" font-weight="700" fill="#059669">可扩展性收益</text>
+  <text x="450" y="552" font-size="12" font-weight="600" fill="#0f172a">Many Brains</text>
+  <text x="450" y="572" font-size="11" fill="#475569">多 harness 可共享一组资源</text>
+  <text x="450" y="600" font-size="12" font-weight="600" fill="#0f172a">Many Hands</text>
+  <text x="450" y="620" font-size="11" fill="#475569">sandbox / custom tool 都统一成 execute() 接口</text>
+  <text x="450" y="648" font-size="12" font-weight="600" fill="#0f172a">可演进的策略</text>
+  <text x="450" y="668" font-size="11" fill="#475569">compaction / caching 藏在 harness，session 接口不变</text>
+  <text x="450" y="696" font-size="11" fill="#475569" font-style="italic">对接口 opinionated，对实现 unopinionated</text>
+
+  <g filter="url(#soft2)">
+    <rect x="800" y="490" width="340" height="250" rx="12" fill="#ffffff" stroke="#fecaca" stroke-width="1.5"/>
+  </g>
+  <text x="970" y="520" text-anchor="middle" font-size="14" font-weight="700" fill="#be123c">安全收益</text>
+  <text x="820" y="552" font-size="12" font-weight="600" fill="#0f172a">物理级隔离</text>
+  <text x="820" y="572" font-size="11" fill="#475569">prompt injection 拿不到不存在的东西</text>
+  <text x="820" y="600" font-size="12" font-weight="600" fill="#0f172a">两种注入模式</text>
+  <text x="820" y="620" font-size="11" fill="#475569">Resource-bundled · Vault-stored</text>
+  <text x="820" y="648" font-size="12" font-weight="600" fill="#0f172a">Agent 配置不污染</text>
+  <text x="820" y="668" font-size="11" fill="#475569">mcp_servers 只声明 url ，auth 走 vault_ids</text>
+  <text x="820" y="696" font-size="11" fill="#475569" font-style="italic">容器内设不了环境变量 —— 是故意的</text>
+</svg>

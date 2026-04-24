@@ -1,0 +1,187 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 780" font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif">
+  <defs>
+    <linearGradient id="indigoGS" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#a5b4fc"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+    <linearGradient id="emeraldGS" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#6ee7b7"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+    <linearGradient id="skyGS" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#7dd3fc"/>
+      <stop offset="100%" stop-color="#0ea5e9"/>
+    </linearGradient>
+    <linearGradient id="amberGS" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fcd34d"/>
+      <stop offset="100%" stop-color="#f59e0b"/>
+    </linearGradient>
+    <linearGradient id="slateGS" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f1f5f9"/>
+      <stop offset="100%" stop-color="#e2e8f0"/>
+    </linearGradient>
+    <filter id="softS" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="4"/>
+      <feOffset dx="0" dy="3"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.12"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <marker id="arrS" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+    </marker>
+    <marker id="arrSR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#6366f1"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="780" fill="#fafbfc"/>
+
+  <!-- Title -->
+  <text x="600" y="44" text-anchor="middle" font-size="26" font-weight="700" fill="#0f172a">客户端标准架构 · SessionDriver</text>
+  <text x="600" y="70" text-anchor="middle" font-size="14" fill="#64748b">Setup-time 与 Runtime 物理分离  ·  SessionDriver 驱动事件流 / 状态投影 / 工具回调</text>
+
+  <!-- Setup-time band (top) -->
+  <g filter="url(#softS)">
+    <rect x="60" y="100" width="1080" height="130" rx="14" fill="#f0f9ff" stroke="#7dd3fc" stroke-width="1.5" stroke-dasharray="5,3"/>
+  </g>
+  <text x="85" y="128" font-size="12" font-weight="700" fill="#0369a1">⏳ Setup Time · 构建期（一次性）</text>
+  <text x="85" y="146" font-size="11" fill="#64748b">在 CI / init 脚本 / 部署时运行  ·  产出稳定的 ID</text>
+
+  <g>
+    <rect x="80" y="160" width="240" height="60" rx="10" fill="#ffffff" stroke="#7dd3fc" stroke-width="1.5"/>
+    <text x="200" y="182" text-anchor="middle" font-size="12" font-weight="600" fill="#0f172a">agents.create(...)</text>
+    <text x="200" y="200" text-anchor="middle" font-size="10" fill="#64748b">model · system prompt · tools · MCP</text>
+    <text x="200" y="214" text-anchor="middle" font-size="10" fill="#0369a1">→ agent_id (versioned)</text>
+  </g>
+  <g>
+    <rect x="340" y="160" width="240" height="60" rx="10" fill="#ffffff" stroke="#7dd3fc" stroke-width="1.5"/>
+    <text x="460" y="182" text-anchor="middle" font-size="12" font-weight="600" fill="#0f172a">environments.create(...)</text>
+    <text x="460" y="200" text-anchor="middle" font-size="10" fill="#64748b">容器模板 · 预装包 · 网络</text>
+    <text x="460" y="214" text-anchor="middle" font-size="10" fill="#0369a1">→ environment_id</text>
+  </g>
+  <g>
+    <rect x="600" y="160" width="240" height="60" rx="10" fill="#ffffff" stroke="#7dd3fc" stroke-width="1.5"/>
+    <text x="720" y="182" text-anchor="middle" font-size="12" font-weight="600" fill="#0f172a">vaults.create(...)</text>
+    <text x="720" y="200" text-anchor="middle" font-size="10" fill="#64748b">OAuth / MCP 凭证</text>
+    <text x="720" y="214" text-anchor="middle" font-size="10" fill="#0369a1">→ vault_id</text>
+  </g>
+  <g>
+    <rect x="860" y="160" width="260" height="60" rx="10" fill="#f0f9ff" stroke="#7dd3fc" stroke-width="1" stroke-dasharray="3,2"/>
+    <text x="990" y="182" text-anchor="middle" font-size="11" font-weight="600" fill="#0369a1">存起来</text>
+    <text x="990" y="200" text-anchor="middle" font-size="10" fill="#475569">env vars · config store · DB</text>
+    <text x="990" y="214" text-anchor="middle" font-size="10" fill="#475569">Runtime 按 ID 引用</text>
+  </g>
+
+  <path d="M 600 234 L 600 262" stroke="#64748b" stroke-width="1.8" marker-end="url(#arrS)" stroke-dasharray="4,3"/>
+
+  <!-- Runtime band (middle - big) -->
+  <g filter="url(#softS)">
+    <rect x="60" y="270" width="1080" height="360" rx="14" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  </g>
+  <text x="85" y="298" font-size="12" font-weight="700" fill="#4f46e5">▶️ Runtime · 每次用户交互</text>
+  <text x="85" y="316" font-size="11" fill="#64748b">SessionDriver 是这条路径上的核心组件</text>
+
+  <!-- UI layer (left in runtime) -->
+  <g filter="url(#softS)">
+    <rect x="80" y="340" width="200" height="270" rx="12" fill="url(#slateGS)" stroke="#cbd5e1" stroke-width="1"/>
+  </g>
+  <text x="180" y="368" text-anchor="middle" font-size="12" font-weight="700" fill="#0f172a">UI · 本地状态</text>
+
+  <g>
+    <rect x="100" y="386" width="160" height="40" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="180" y="410" text-anchor="middle" font-size="11" fill="#334155">聊天视图 / 编辑器</text>
+  </g>
+  <g>
+    <rect x="100" y="434" width="160" height="40" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="180" y="458" text-anchor="middle" font-size="11" fill="#334155">状态投影 store</text>
+  </g>
+  <g>
+    <rect x="100" y="482" width="160" height="40" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="180" y="506" text-anchor="middle" font-size="11" fill="#334155">事件去重表 (by id)</text>
+  </g>
+  <g>
+    <rect x="100" y="530" width="160" height="40" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="180" y="554" text-anchor="middle" font-size="11" fill="#334155">用户输入队列</text>
+  </g>
+  <text x="180" y="592" text-anchor="middle" font-size="10" fill="#64748b" font-style="italic">不要自己造 agent 状态机</text>
+
+  <!-- SessionDriver (center) -->
+  <g filter="url(#softS)">
+    <rect x="310" y="340" width="520" height="270" rx="14" fill="url(#indigoGS)"/>
+  </g>
+  <text x="570" y="368" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">🚗 SessionDriver</text>
+  <text x="570" y="386" text-anchor="middle" font-size="11" fill="#e0e7ff">每个 session 一个实例  ·  跨 reconnect 存活</text>
+
+  <g>
+    <rect x="330" y="402" width="230" height="62" rx="8" fill="#ffffff" opacity="0.95"/>
+    <text x="345" y="424" font-size="11.5" font-weight="700" fill="#4f46e5">① sessions.create()</text>
+    <text x="345" y="442" font-size="10" fill="#475569">绑定 agent_id + environment_id</text>
+    <text x="345" y="456" font-size="10" fill="#475569">+ vault_ids</text>
+  </g>
+  <g>
+    <rect x="580" y="402" width="230" height="62" rx="8" fill="#ffffff" opacity="0.95"/>
+    <text x="595" y="424" font-size="11.5" font-weight="700" fill="#4f46e5">② 标准 reconnect 模式</text>
+    <text x="595" y="442" font-size="10" fill="#475569">open stream → pull history</text>
+    <text x="595" y="456" font-size="10" fill="#475569">→ dedupe by event id</text>
+  </g>
+  <g>
+    <rect x="330" y="476" width="230" height="62" rx="8" fill="#ffffff" opacity="0.95"/>
+    <text x="345" y="498" font-size="11.5" font-weight="700" fill="#4f46e5">③ 事件 → 本地状态投影</text>
+    <text x="345" y="516" font-size="10" fill="#475569">agent.message → 追加消息流</text>
+    <text x="345" y="530" font-size="10" fill="#475569">status_* → 禁用/启用输入框</text>
+  </g>
+  <g>
+    <rect x="580" y="476" width="230" height="62" rx="8" fill="#ffffff" opacity="0.95"/>
+    <text x="595" y="498" font-size="11.5" font-weight="700" fill="#4f46e5">④ 工具回调路由</text>
+    <text x="595" y="516" font-size="10" fill="#475569">agent.custom_tool_use →</text>
+    <text x="595" y="530" font-size="10" fill="#475569">host-side handler → send result</text>
+  </g>
+  <g>
+    <rect x="330" y="550" width="480" height="50" rx="8" fill="#ffffff" opacity="0.95"/>
+    <text x="345" y="572" font-size="11.5" font-weight="700" fill="#4f46e5">⑤ events.send(user.message / tool_result)</text>
+    <text x="345" y="590" font-size="10" fill="#475569">唯一的「写入」路径  ·  不允许绕过</text>
+  </g>
+
+  <!-- CMA (right in runtime) -->
+  <g filter="url(#softS)">
+    <rect x="860" y="340" width="260" height="270" rx="12" fill="#ecfdf5" stroke="#6ee7b7" stroke-width="1.5"/>
+  </g>
+  <text x="990" y="368" text-anchor="middle" font-size="12" font-weight="700" fill="#059669">CMA Platform</text>
+  <text x="990" y="386" text-anchor="middle" font-size="10.5" fill="#64748b">managed-agents-2026-04-01</text>
+
+  <g>
+    <rect x="880" y="402" width="220" height="40" rx="8" fill="#ffffff" stroke="#a7f3d0" stroke-width="1"/>
+    <text x="990" y="426" text-anchor="middle" font-size="11" font-weight="600" fill="#047857">GET /events/stream (SSE)</text>
+  </g>
+  <g>
+    <rect x="880" y="450" width="220" height="40" rx="8" fill="#ffffff" stroke="#a7f3d0" stroke-width="1"/>
+    <text x="990" y="474" text-anchor="middle" font-size="11" font-weight="600" fill="#047857">GET /events (list 分页)</text>
+  </g>
+  <g>
+    <rect x="880" y="498" width="220" height="40" rx="8" fill="#ffffff" stroke="#a7f3d0" stroke-width="1"/>
+    <text x="990" y="522" text-anchor="middle" font-size="11" font-weight="600" fill="#047857">POST /events (send)</text>
+  </g>
+  <g>
+    <rect x="880" y="546" width="220" height="50" rx="8" fill="#ecfdf5" stroke="#6ee7b7" stroke-width="1"/>
+    <text x="990" y="568" text-anchor="middle" font-size="10" fill="#047857">内部：Harness + Sandbox</text>
+    <text x="990" y="584" text-anchor="middle" font-size="10" fill="#047857">+ Event Log</text>
+  </g>
+
+  <!-- Arrows UI ↔ SessionDriver -->
+  <path d="M 282 440 L 308 440" stroke="#6366f1" stroke-width="1.8" marker-end="url(#arrSR)"/>
+  <path d="M 308 500 L 282 500" stroke="#6366f1" stroke-width="1.8" marker-end="url(#arrSR)"/>
+
+  <!-- Arrows SessionDriver ↔ CMA -->
+  <path d="M 832 440 L 858 440" stroke="#10b981" stroke-width="1.8" marker-end="url(#arrS)"/>
+  <path d="M 858 500 L 832 500" stroke="#10b981" stroke-width="1.8" marker-end="url(#arrS)"/>
+
+  <!-- Bottom: best practices -->
+  <g filter="url(#softS)">
+    <rect x="60" y="650" width="1080" height="110" rx="14" fill="#fffbeb" stroke="#fcd34d" stroke-width="1.5"/>
+  </g>
+  <text x="85" y="678" font-size="12" font-weight="700" fill="#d97706">⚠️ 四个易错点</text>
+  <text x="85" y="702" font-size="11" fill="#475569">①  每次运行都 agents.create() —— 白白浪费 versioning 机制</text>
+  <text x="85" y="722" font-size="11" fill="#475569">②  在客户端另维护一份 agent 状态机 —— 一定会和事件日志漂移</text>
+  <text x="620" y="702" font-size="11" fill="#475569">③  把 API key 塞进 system prompt / user message —— 会进事件历史</text>
+  <text x="620" y="722" font-size="11" fill="#475569">④  断线重连不去重 —— UI 出现重复气泡</text>
+</svg>
