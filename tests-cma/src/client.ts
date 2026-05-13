@@ -132,11 +132,19 @@ export function getConfig(): CmaConfig {
  *   getClient({ awsRegion: "us-west-2", workspaceId: "wrkspc_..." });
  */
 export function getClient(overrides: Partial<AwsClientOptions> = {}): AnthropicAws {
-  if (cachedClient && Object.keys(overrides).length === 0) return cachedClient;
+  // Phase 0 smoke 实测发现的 bug 修复:
+  // 之前实现是"传 overrides 时不写 cache",导致 smoke 调 getClient({ fetch }) 创建
+  // 独立 client A 但不写 cache,stream.ts / fixtures 后续 getClient() 拿 cache miss
+  // 新建 client B(无 fetch),smoke 的 fetch 注入只对 A 生效但实际 SDK 调用走 B。
+  // 体现:smoke 跑通但 http.jsonl 是空的(Recorder 永远没看到 SDK 的 HTTP 流量)。
+  //
+  // 修法:无论是否有 overrides,都写 cache(全局唯一 client)。test 间用
+  // resetClientCache() 兜底避免污染。
+  const hasOverrides = Object.keys(overrides).length > 0;
+  if (!hasOverrides && cachedClient) return cachedClient;
   assertRequiredEnv();
-  const client = new AnthropicAws(overrides);
-  if (Object.keys(overrides).length === 0) cachedClient = client;
-  return client;
+  cachedClient = new AnthropicAws(overrides);
+  return cachedClient;
 }
 
 export function resetClientCache(): void {

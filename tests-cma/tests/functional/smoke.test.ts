@@ -15,7 +15,7 @@
  */
 
 import { afterEach, describe, expect, it } from "vitest";
-import { describeClient, getClient } from "../../src/client.ts";
+import { describeClient, getClient, resetClientCache } from "../../src/client.ts";
 import { getSharedAgentId } from "../../src/fixtures/agents.ts";
 import { getSharedEnvironmentId } from "../../src/fixtures/environments.ts";
 import { createTestSession, safeArchive } from "../../src/fixtures/sessions.ts";
@@ -44,6 +44,8 @@ describe("smoke · end-to-end basic turn", () => {
         console.warn("[smoke] artifact dump failed:", err);
       }
     }
+    // 释放 fetch-hooked client(避免下个 test 复用 hook 到这个 recorder 的 client)
+    resetClientCache();
     sessionId = undefined;
     recorder = undefined;
   });
