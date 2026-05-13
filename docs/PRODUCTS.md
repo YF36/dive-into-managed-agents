@@ -29,9 +29,14 @@
 详见 [agentmatrix-notes/research/managed-agents/findings/README.md](https://github.com/agentmatrix-labs/agentmatrix-notes/blob/main/research/managed-agents/findings/README.md) 的 workflow + template。
 
 ### 2.2 Artifacts(原始数据)
-**位置**:`dive-into-managed-agents/tests-cma/artifacts/<YYYY-MM-DD>/<run_id>/<case-id>/`(本 repo,gitignored)
+**位置**:`agentmatrix-notes/research/managed-agents/artifacts/<YYYY-MM-DD>/<run_id>/<case-id>/`(跟 finding 同 repo,**commit + push 长期保留**)
 
-每个测试 case 跑完自动落盘,**永久保留作为实证仲裁**(后续设计争议时可回溯)。
+每个测试 case 跑完自动落盘,**作为不可重生的实证资产**。AWS host 环境一旦回收(VM 销毁 / quota 重置 / vendor billing 切换),raw artifact 是唯一证据,所以必须进 git。
+
+**Recorder rootDir 解析**(优先级):
+1. `CMA_ARTIFACT_ROOT` env 显式覆盖(CI / 特殊场景)
+2. 自动探测 `<dive-into>/../agentmatrix-notes/research/managed-agents/artifacts/`(默认路径,sibling repo 存在则用)
+3. fallback 到 `tests-cma/artifacts/`(gitignored,只在 agentmatrix-notes 没 clone 时兜底,例如新 dev 第一次跑测试)
 
 **单 case artifact 结构**:
 ```
@@ -42,9 +47,11 @@ artifacts/2026-05-13/01HXX.../smoke--end-to-end-basic-turn/
 └── metadata.json      case 上下文(case_id / run_id / endpoint / 自定义 metadata)
 ```
 
-**Redaction**:Recorder 自动把已知 secret(`ANTHROPIC_AWS_API_KEY` 等)替换成 `<redacted:xxxx...xx>`,sensitive headers(authorization / x-api-key 等)整 value 替换。Artifact 因此**安全用于跨人共享 / 进 git**(虽然默认 gitignore,因为 size)。
+**Redaction**:Recorder 自动把已知 secret(`ANTHROPIC_AWS_API_KEY` 等)替换成 `<redacted:xxxx...xx>`,sensitive headers(authorization / x-api-key / cookie 等)整 value 替换。Artifact 因此**安全用于跨人共享 / 进 git**。
 
-**为什么 gitignore**:Phase 1+ 用例数预计 100+,每 case 50-500KB artifact,git 体积会快速膨胀。**Finding 文档应 inline 引用 artifact 里的关键片段**(20 行内),raw artifact 跑测试时再生成。
+**为什么 commit 而非 gitignore**(2026-05-13 用户校准):raw 数据是不可重生的资产,AWS 环境回收后无法再产生。Phase 1+ 用例数预计 100+,每 case 50-500KB,累积 5-50MB,远低于 GitHub repo size limit;JSONL 是 text,git diff / blame 工作良好,不需要 LFS。**Finding 文档仍 inline 引用 artifact 关键片段**(快速核查),但**完整 raw 文件 commit + push**(深度回溯 / 跨人共享)。
+
+**Commit 责任**:跑测试落盘后,**agentmatrix-notes** 那边 git add / commit / push(notes repo 允许直接 push main per `feedback_notes_repo_direct_push`)。
 
 **重新跑 artifact**:`npm run test -- <case-pattern>` 重跑某 case 即生成新 artifact。Artifact 路径稳定(date / run_id / case-id 三段),不同 run 自然隔离。
 
@@ -103,15 +110,22 @@ References 列 finding id + RFC 章节 + artifact 路径
 
 | 路径 | Repo | 内容 |
 |---|---|---|
-| `dive-into-managed-agents/tests-cma/` | dive-into | 测试代码 + 跑测试 + artifact 落盘 |
-| `dive-into-managed-agents/docs/findings-index.md` | dive-into | 轻索引,列所有 finding 的 ID + topic + cross-link 到 agentmatrix-notes(便于本 repo 跑测试时快速看"产出了什么") |
+| `dive-into-managed-agents/tests-cma/` | dive-into | 测试代码 + 跑测试(无持久 artifact)|
+| `dive-into-managed-agents/docs/findings-index.md` | dive-into | 轻索引,列所有 finding ID + cross-link 到 agentmatrix-notes(便于跑测试时快速看"产出了什么") |
 | `agentmatrix-notes/research/managed-agents/findings/` | agentmatrix-notes | finding 的权威位置 |
+| `agentmatrix-notes/research/managed-agents/artifacts/` | agentmatrix-notes | **raw artifact 长期归宿**(commit + push,AWS 环境回收也不丢) |
 | `agentmatrix-notes/decisions/ADR-*.md` | agentmatrix-notes | ADR(已有流程) |
 | `agentmatrix-notes/architecture/` / `specs/v1/` | agentmatrix-notes | 受 ADR 影响时更新这些(权威优先级见 AGENTS.md) |
 
+**注意**:dive-into 这边的 `tests-cma/artifacts/` 是 fallback 兜底(若 agentmatrix-notes 没 clone)+ gitignored;**正常情况下 Recorder 自动写到 agentmatrix-notes**。
+
 ## 6. 为什么这样切
 
-**为什么 artifacts 留 dive-into**:跟测试代码同 repo,跑测试时本地 stat 即时可见。跨 repo 拿原始数据反而麻烦。
+**为什么 artifacts 放 agentmatrix-notes**(2026-05-13 用户校准):
+- raw 数据是**不可重生的设计资产**,AWS 环境一旦回收(VM / quota / billing 切换),artifact 是唯一证据
+- 跟 finding 同 repo,引用时本 repo 相对路径(不需要跨 repo)
+- agentmatrix-notes 本就是 AgentMatrix 知识沉淀 repo,artifact 是 research 类资产
+- 体量评估(Phase 1+ 5-50MB)远低于 GitHub limit,JSONL text 友好 git diff
 
 **为什么 finding 放 agentmatrix-notes**:finding 是 AgentMatrix 设计的输入,跟 ADR / architecture / specs 在同一 repo 便于交叉引用。`research/managed-agents/findings/` 符合 agentmatrix-notes [AGENTS.md](https://github.com/agentmatrix-labs/agentmatrix-notes/blob/main/AGENTS.md) "external research → `research/`" 的 directory placement 约定。
 

@@ -12,14 +12,19 @@
 
 (Phase 1+ 用例会追加更多 finding)
 
-## 怎么找 finding 内容
+## 怎么找 finding 内容 + raw artifact
 
 ```bash
-# 本 repo(跑测试 / 看 artifact)
-cd dive-into-managed-agents
-ls tests-cma/artifacts/<date>/<run_id>/<case-id>/
-
-# agentmatrix-notes repo(看 finding 正文)
+# agentmatrix-notes repo(finding 正文 + raw artifact 长期归宿)
 cd ../agentmatrix-notes/research/managed-agents/findings/
 ls F-*.md
+
+cd ../artifacts/<date>/<run_id>/<case-id>/
+# events.jsonl / http.jsonl / marks.json / metadata.json
+
+# 本 repo(测试代码)
+cd dive-into-managed-agents/tests-cma/
+# tests-cma/artifacts/ 是 fallback(若 agentmatrix-notes 没 clone),gitignored
 ```
+
+**为什么 artifact 在 agentmatrix-notes**:见 [`PRODUCTS.md` §6](./PRODUCTS.md#6-为什么这样切)——raw 数据是不可重生的设计资产,AWS 回收后丢了就丢了,必须 commit 到 knowledge base repo。

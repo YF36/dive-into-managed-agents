@@ -23,6 +23,7 @@
  *   - Redaction 基于 string-equal 替换(已知 secret),Phase 1+ 可加 regex / 字段级 schema 化 redact
  */
 
+import { existsSync } from "node:fs";
 import { writeFile, mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
@@ -30,7 +31,31 @@ import { getConfig } from "../client.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const TESTS_CMA_ROOT = resolve(dirname(__filename), "../..");
-const DEFAULT_ARTIFACTS_ROOT = resolve(TESTS_CMA_ROOT, "artifacts");
+
+/**
+ * Artifact 落盘根目录解析(优先级从高到低):
+ *
+ *   1. `CMA_ARTIFACT_ROOT` env 显式覆盖
+ *   2. 自动探测 sibling repo `<dive-into>/../agentmatrix-notes/research/managed-agents/artifacts/`
+ *      —— 这是 raw 数据的**长期归宿**(agentmatrix-notes commit,跟 finding 同 repo,
+ *      AWS 环境回收也不丢)
+ *   3. fallback 到本地 `tests-cma/artifacts/`(gitignored,仅在 agentmatrix-notes 不存在
+ *      时兜底,例如新 dev 还没 clone notes repo)
+ *
+ * 探测依据是 `agentmatrix-notes/research/managed-agents/` 目录是否存在,而非顶层
+ * agentmatrix-notes/ —— 后者可能存在但内部结构异常。
+ */
+function detectDefaultArtifactRoot(): string {
+  const env = process.env["CMA_ARTIFACT_ROOT"];
+  if (env) return resolve(env);
+  const sibling = resolve(
+    TESTS_CMA_ROOT,
+    "../../agentmatrix-notes/research/managed-agents/artifacts",
+  );
+  const siblingParent = dirname(sibling); // .../agentmatrix-notes/research/managed-agents
+  if (existsSync(siblingParent)) return sibling;
+  return resolve(TESTS_CMA_ROOT, "artifacts");
+}
 
 const SENSITIVE_HEADER_NAMES = new Set([
   "authorization",
@@ -191,7 +216,7 @@ export function createRecorder(options: RecorderOptions): RecorderHandle {
   const additional: Record<string, unknown> = {};
   const startedAt = new Date();
   const startedPerf = performance.now();
-  const rootDir = options.rootDir ?? DEFAULT_ARTIFACTS_ROOT;
+  const rootDir = options.rootDir ?? detectDefaultArtifactRoot();
   const dateStr = todayDateStr();
   const safeCaseId = sanitizeCaseId(options.caseId);
   const artifactDir = resolve(rootDir, dateStr, config.testRunId, safeCaseId);
