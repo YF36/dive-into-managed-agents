@@ -20,11 +20,11 @@
 | Bedrock 经典 | **不支持 CMA** | 本任务不测 |
 | **SDK 包** | **`@anthropic-ai/aws-sdk` v0.3.0**(AnthropicAws extends Anthropic,自动暴露 `beta.*` 全 CMA surface)| 单一路径,无 dual-mode |
 | **凭据** | `ANTHROPIC_AWS_API_KEY` env(配在 `.bash_profile`)+ `ANTHROPIC_AWS_WORKSPACE_ID` env + `AWS_REGION` env | **绝不进 `.env` 文件** |
-| Event 类型数量 | ~30 种(从 SDK 类型 union 抓出)`[source: SDK type;部分如 session.deleted 未在官方 API ref 验证,详见 §10 source taxonomy + 20-streaming §20.3]` | `20-streaming-and-events.md` 全覆盖 |
-| Session 状态机 | 4 态(`idle / running / rescheduling / terminated`)| 无 paused / archived(archive 是 metadata flag)|
-| Reconnect 协议 | 无 cursor / 无 `Last-Event-ID`;推荐客户端 stream + list + event_id 去重 | 测试代码必须实现客户端去重逻辑 |
-| events.send | 批量数组 `{events: []}`,**未文档化 idempotency-key** | 重要测试边界:重 POST 同 payload 行为 |
-| `processed_at` | 单字段,null → timestamp 单向变化 | 单相 occurrence;若上层用 client 要双相模型,需在 adapter 层模拟 |
+| Event 类型数量 | ~30 种(从 SDK 类型 union 抓出)`[source: SDK type + API ref;详见 §10 + 20-streaming §20.7 stable/gated 分类]` | `20-streaming-and-events.md` 全覆盖(Phase 2 协议研究计划)|
+| Session 状态机 | 4 态(`idle / running / rescheduling / terminated`)`[source: Phase 1 F-0006 实测 — archive 同时改 status=terminated,推翻"archive 仅 metadata flag"假设]` | Phase 2 进一步刻画 status 字段与 lifecycle event 的投影 |
+| Reconnect 协议 | 无 cursor / 无 `Last-Event-ID`;推荐客户端 stream + list + 客户端去重 | **两种 dedupe 模式**:UI consolidation 按 id 合并;transport/recovery 必须 occurrence-preserving(20-streaming §20.4)|
+| events.send | 批量数组 `{events: []}`,**未文档化 idempotency-key** | 重要测试边界:重 POST 同 payload 行为(20-streaming §20.4.6)|
+| `processed_at` | 单字段,null → timestamp 单向变化 | **Append-only 两层不变量**:logical 字段恒定 + processed_at 允许 null→timestamp;Phase 2 §20.3 实测 stream / list / send response 三路对比 |
 | Rate limit | org 级 create 300 rpm / read 600 rpm | **不打这个上限** |
 | Pause / resume / checkpoint | **不存在** | 跨 vendor 兼容层若依赖这些字段需 client 端模拟或 stub |
 
