@@ -58,7 +58,7 @@
 | Phase | 范围 | 完工标志 | 预估天数(自然天)|
 |---|---|---|---|
 | 0 | 骨架 + overview + 7 份骨架 + smoke test | 本地 smoke test 1 个 pass | 0.5 |
-| 1 | `10-functional-and-api` 全集 + tests | 60-80 用例 direct mode 全绿 | 2-3 |
+| 1 | `10-functional-and-api` 全集 + tests | 60-80 用例 AWS endpoint 全绿 | 2-3 |
 | 2 | `20-streaming-and-events` + tests | 50-70 用例 | 2-3 |
 | 3 | `30-vault` + `40-multi-agent-memory-outcomes` + tests | 80-100 用例,RP 占位 | 3-4 |
 | 4 | `50-performance` + tests(AWS host 跑)| baseline 数据出来 | 1-2 |
@@ -77,7 +77,7 @@
 | `memory_store` | per-suite | 同 vault |
 | `credential` | per-suite | 同 vault |
 
-**Cleanup 兜底**:`scripts/cleanup.ts` 列出所有 metadata 带 `test_run_id=<本次 run uuid>` 的资源,统一 archive。CI / 本地都跑。
+**Cleanup 范围**:`scripts/cleanup.ts` 列 metadata 带 `test_run_id=<本次 run id>` 的资源并 archive。**Phase 0 实现只覆盖 session + vault**(用例只创建这两类 ephemeral);Phase 1+ 扩展到 agents / environments / memory_stores / files / credentials,届时一并补 cleanup 实现。`test_run_id` 由 `tests-cma/.run.json` 持久化(`npm run test` 自动建,`npm run cleanup` 自动删),让两个独立进程读到同一 id。
 
 ## 6. 不变量库索引
 
@@ -140,3 +140,23 @@ npm run test:slow                       # 跑 @slow tag(默认 skip)
 | 2026-05-13 | 0 | **改用 `@anthropic-ai/aws-sdk` v0.3.0,放弃 `@anthropic-ai/sdk` + 手动 baseURL/auth 的 dual-mode 设计** | AWS host `my-aws:/home/ubuntu/hello.ts` 实测确认用 aws-sdk;调研发现 `AnthropicAws extends Anthropic`,自动暴露 `beta.*` 完整 CMA surface(详见 [`../cma-aws-sdk-notes.md`](../cma-aws-sdk-notes.md))| `client.ts` 简化为单一路径;`package.json` 改依赖;`.env.example` 移除所有凭据字段;`90-aws-platform-notes.md` 重写 §3 / §4 |
 | 2026-05-13 | 0 | **凭据从系统 env 读,不进 `.env`** | 用户明示;AWS host 已把 `ANTHROPIC_AWS_API_KEY` 等配在 `.bash_profile` | `client.ts` 移除 `loadDotenv()`;测试代码 `assertRequiredEnv()` 严格 fail-fast |
 | 2026-05-13 | 0 | **SSH 必须用 login shell 才能读到 env**(`ssh -t my-aws bash -lc` 或交互式) | 非交互式 `ssh my-aws "node hello.ts"` 实测失败,env 全空 | Quick Start + 90 §9 写明 |
+
+## 10. 事实可信度 source taxonomy
+
+文档里的 fact / 不变量 / event 类型清单等,**每条都该带 source 标注**,让 reviewer 一眼看到可信度。Phase 0 review M5 揭示的根问题:`session.deleted` 是我从 SDK 类型 union 抄的,没在官方 docs cross-check,事实上官方 API ref 找不到它。这种 "二手汇编混进未验证条目"的风险需要从源头隔离。
+
+**四级 taxonomy**(优先级从高到低):
+
+| 标签 | 含义 | 取信度 | 何时用 |
+|---|---|:---:|---|
+| `[source: official docs]` | Anthropic 官方文档明确列出 | ★★★ | 直接引用文档原文或 schema |
+| `[source: SDK type]` | 从 `@anthropic-ai/sdk` / `@anthropic-ai/aws-sdk` 类型导出 | ★★ | 文档没列但 SDK 类型 union 有的事件 / 字段 |
+| `[source: 实测]` | Phase 0-5 用例运行结果 | ★★★ | 跑过的具体行为(error code / latency / event 出现条件) |
+| `[source: hypothesis]` | 设计假设 / 我们推测 | ★ | 尚未验证的判断,等 Phase 1+ 实测确认 |
+
+**两种联合标注**(实际很常见):
+
+- `[source: official docs + SDK type]` — 两边都有,最稳
+- `[source: SDK type, unverified in official API ref]` — SDK 暴露但官方 docs 找不到,**重点测试目标**
+
+**Phase 1 计划**:跑脚本从 SDK 类型 union 生成 `event-catalog.generated.md`,本仓库所有文档引用 generated 文档而非手写 — 消除"二手汇编漂移"风险。Phase 0 文档先手动标 source,Phase 1+ retrofit 自动化。

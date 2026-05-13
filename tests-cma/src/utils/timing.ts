@@ -53,8 +53,18 @@ export function summarize(samples: number[]): LatencyStats {
   };
 }
 
+/**
+ * Nearest-rank percentile(L2 修复:之前用 floor 偏移一位 —— p95 在 n=100 时
+ * 取 sorted[95],即第 96 个值,实际应该是第 95 个值 sorted[94])。
+ *
+ * 公式:idx = ceil(p * n) - 1,clamp 到 [0, n-1]。
+ * 例:n=100, p=0.95 → ceil(95)-1 = 94 → sorted[94](0-indexed 第 95 个值)
+ *     n=100, p=0.50 → ceil(50)-1 = 49 → sorted[49]
+ *     n=100, p=0.99 → ceil(99)-1 = 98 → sorted[98]
+ */
 function percentile(sortedAsc: number[], p: number): number {
-  const idx = Math.min(sortedAsc.length - 1, Math.max(0, Math.floor(p * sortedAsc.length)));
+  if (sortedAsc.length === 0) return NaN;
+  const idx = Math.min(sortedAsc.length - 1, Math.max(0, Math.ceil(p * sortedAsc.length) - 1));
   return sortedAsc[idx] ?? NaN;
 }
 

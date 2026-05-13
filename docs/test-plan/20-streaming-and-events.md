@@ -48,14 +48,19 @@
 - 20.2.6 `Last-Event-ID: <event_id>` header 服务端是否识别(实验性,验证 SSE 标准实现)
 - 20.2.7 服务端忽略 header 时的 fallback 行为
 
-### 20.3 30 种 event 类型全覆盖(预计 25-30 条)
+### 20.3 ~30 种 event 类型全覆盖(预计 25-30 条)
+
+**事实可信度标注**(详见 [`00-overview.md` §10 source taxonomy](./00-overview.md#10-事实可信度-source-taxonomy)):本节 event type 全集**来自 SDK 类型 union**(`@anthropic-ai/sdk` `BetaManagedAgentsStreamSessionEvents`)。Phase 1 实施时**应该跑脚本从 SDK 类型生成 `event-catalog.generated.md`**,本节引用 generated 文档而不是手写枚举,避免漂移。下面是 Phase 0 的临时清单,带 source 标注:
 
 每个 event type 至少一个用例触发 + 断言 payload schema:
 
-**user.* (5)**:`message` / `interrupt` / `tool_confirmation` / `custom_tool_result` / `define_outcome`
-**agent.* (10)**:`message` / `thinking` / `tool_use` / `tool_result` / `mcp_tool_use` / `mcp_tool_result` / `custom_tool_use` / `thread_message_received` / `thread_message_sent` / `thread_context_compacted`
-**session.* (10)**:`status_running` / `status_idle` / `status_rescheduled` / `status_terminated` / `error` / `thread_created` / `thread_status_running` / `thread_status_idle` / `thread_status_rescheduled` / `thread_status_terminated` / `deleted`
-**span.* (5)**:`model_request_start` / `model_request_end` / `outcome_evaluation_start` / `outcome_evaluation_ongoing` / `outcome_evaluation_end`
+**user.\*** (5) `[source: official docs + SDK type]`:`message` / `interrupt` / `tool_confirmation` / `custom_tool_result` / `define_outcome`
+
+**agent.\*** (10) `[source: SDK type union]`:`message` / `thinking` / `tool_use` / `tool_result` / `mcp_tool_use` / `mcp_tool_result` / `custom_tool_use` / `thread_message_received` / `thread_message_sent` / `thread_context_compacted`
+
+**session.\*** (11) `[source: SDK type union]`:`status_running` / `status_idle` / `status_rescheduled` / `status_terminated` / `error` / `thread_created` / `thread_status_running` / `thread_status_idle` / `thread_status_rescheduled` / `thread_status_terminated` / **`deleted`** `[source: SDK type union, unverified in official API ref]` — Phase 0 review M5 标出此项:SDK 暴露但官方 docs 未列,Phase 1 用例第一条就是 trigger + capture,确认是否真存在以及在什么条件下发
+
+**span.\*** (5) `[source: SDK type union]`:`model_request_start` / `model_request_end` / `outcome_evaluation_start` / `outcome_evaluation_ongoing` / `outcome_evaluation_end`
 
 (实际触发某些 event 需要 multi-agent / outcomes / 中断场景,会跟 `40-multi-agent-memory-outcomes.md` 重叠)
 
