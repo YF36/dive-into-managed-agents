@@ -103,13 +103,25 @@ export interface HttpPair {
     url: string;
     method: string;
     headers: Record<string, string>;
+    /**
+     * Request body(如有)。string body 直接 capture(redacted);ReadableStream /
+     * FormData 等不读以避免破坏 SDK 内部消费,标 placeholder。
+     */
+    body?: string;
   };
   response: {
     status: number;
     statusText: string;
     headers: Record<string, string>;
-    /** SSE / stream 响应不 capture body(无法 tee) */
+    /** `Content-Type: text/event-stream` 时为 true */
     isStream: boolean;
+    /**
+     * Response body(如有)。non-stream 用 `response.clone()` 复制后 await text()
+     * 读出(redacted);**stream(SSE)body 跳过**,因为 SDK 是 streaming
+     * consumer,且 events.jsonl 已 capture 所有 SSE event(body 内容等价)。
+     * 跳过时该字段为 undefined。
+     */
+    body?: string;
   };
   timing: {
     startedAt: number;
@@ -338,7 +350,7 @@ function renderCaseMarkdown(input: CaseMarkdownInput): string {
   lines.push("## Files");
   lines.push("");
   lines.push("- [`events.jsonl`](./events.jsonl) — SSE stream raw events");
-  lines.push("- [`http.jsonl`](./http.jsonl) — HTTP request/response pairs(no body)");
+  lines.push("- [`http.jsonl`](./http.jsonl) — HTTP request/response pairs(含 body;SSE response body 跳过,见 events.jsonl)");
   lines.push("- [`marks.json`](./marks.json) — timing marks");
   lines.push("- [`metadata.json`](./metadata.json) — case context");
   lines.push("");
@@ -396,6 +408,35 @@ export function createRecorder(options: RecorderOptions): RecorderHandle {
       for (const [k, v] of iter) reqHeadersRaw[k] = String(v);
     }
 
+    // Capture request body before fetch(若是 string,直接拷;stream/FormData 不读)
+    let requestBody: string | undefined;
+    if (init?.body !== undefined && init.body !== null) {
+      const b = init.body as unknown;
+      if (typeof b === "string") {
+        requestBody = b;
+      } else if (b instanceof ReadableStream) {
+        requestBody = "<ReadableStream body, not captured>";
+      } else if (typeof FormData !== "undefined" && b instanceof FormData) {
+        requestBody = "<FormData body, not captured>";
+      } else if (b instanceof ArrayBuffer || ArrayBuffer.isView(b)) {
+        requestBody = `<binary body ${(b as ArrayBuffer).byteLength ?? "?"} bytes, not captured>`;
+      } else {
+        try {
+          requestBody = JSON.stringify(b);
+        } catch {
+          requestBody = "<unknown body type>";
+        }
+      }
+    } else if (input instanceof Request && input.body) {
+      // Request 对象自带 body,但通常 SDK 用 init.body — 这里防御性兜底
+      try {
+        const cloned = input.clone();
+        requestBody = await cloned.text();
+      } catch {
+        requestBody = "<Request body, capture failed>";
+      }
+    }
+
     const response = await globalThis.fetch(input, init);
     const t1 = performance.now();
     const isStream =
@@ -403,17 +444,30 @@ export function createRecorder(options: RecorderOptions): RecorderHandle {
     const resHeadersRaw: Record<string, string> = {};
     for (const [k, v] of response.headers.entries()) resHeadersRaw[k] = v;
 
+    // Capture response body via clone(non-stream only — SSE body via events.jsonl)
+    let responseBody: string | undefined;
+    if (!isStream) {
+      try {
+        const cloned = response.clone();
+        responseBody = await cloned.text();
+      } catch (err) {
+        responseBody = `<clone body failed: ${(err as Error).message}>`;
+      }
+    }
+
     httpPairs.push({
       request: {
         url: redactString(url, allSecrets),
         method,
         headers: redactHeaders(reqHeadersRaw, allSecrets),
+        body: requestBody !== undefined ? redactString(requestBody, allSecrets) : undefined,
       },
       response: {
         status: response.status,
         statusText: response.statusText,
         headers: redactHeaders(resHeadersRaw, allSecrets),
         isStream,
+        body: responseBody !== undefined ? redactString(responseBody, allSecrets) : undefined,
       },
       timing: {
         startedAt: t0,
