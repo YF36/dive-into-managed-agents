@@ -41,11 +41,14 @@
 **单 case artifact 结构**:
 ```
 artifacts/2026-05-13/01HXX.../smoke--end-to-end-basic-turn/
+├── case.md            ★ 人类可读 summary(目的 / notes / event 计数 / markers / HTTP overview / files)
 ├── events.jsonl       SSE stream 收到的 raw event,每行 1 个
 ├── http.jsonl         HTTP request/response 对(headers + URL + status + timing,无 body)
 ├── marks.json         timing marks(perf 测试的关键节点)
-└── metadata.json      case 上下文(case_id / run_id / endpoint / 自定义 metadata)
+└── metadata.json      case 上下文(case_id / run_id / endpoint / notes / 自定义 metadata)
 ```
+
+`case.md` 是 Recorder 自动生成 + 测试作者 `recorder.addNote(...)` 补充。**这是 finding 的轻量预报**(reviewer 可以快速浏览所有 case.md 决定哪些值得升级到独立 finding),raw 数据深挖回到 jsonl / json。
 
 **Redaction**:Recorder 自动把已知 secret(`ANTHROPIC_AWS_API_KEY` 等)替换成 `<redacted:xxxx...xx>`,sensitive headers(authorization / x-api-key / cookie 等)整 value 替换。Artifact 因此**安全用于跨人共享 / 进 git**。
 

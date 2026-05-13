@@ -110,6 +110,7 @@ export interface RecordedMetadata {
     workspaceId: string;
     awsRegion: string;
   };
+  notes: string[];
   additional: Record<string, unknown>;
 }
 
@@ -133,6 +134,11 @@ export interface RecorderHandle {
   mark(label: string): void;
   /** 加自定义 metadata key/value */
   addMetadata(key: string, value: unknown): void;
+  /**
+   * 加一行 note。多次调用按时序累积,dump 时按时序写入 `case.md` Notes 段。
+   * 推荐内容:测试目的 / 观察重点 / 关键结果。空 notes 时 case.md 仍含 metadata + counts 部分。
+   */
+  addNote(text: string): void;
   /** 收尾:落盘所有 artifact,返回路径 + 统计 */
   dump(): Promise<DumpResult>;
 }
@@ -204,6 +210,124 @@ function redactHeaders(
   return out;
 }
 
+interface CaseMarkdownInput {
+  caseId: string;
+  metadata: RecordedMetadata;
+  notes: readonly string[];
+  events: readonly unknown[];
+  httpPairs: readonly HttpPair[];
+  markers: readonly Marker[];
+}
+
+function renderCaseMarkdown(input: CaseMarkdownInput): string {
+  const { caseId, metadata, notes, events, httpPairs, markers } = input;
+
+  // event type 分布 + 同 id 多 occurrence 统计
+  const typeCounts: Record<string, number> = {};
+  const idCounts: Record<string, number> = {};
+  for (const e of events) {
+    const obj = e as { type?: unknown; id?: unknown } | null;
+    if (typeof obj?.type === "string") {
+      typeCounts[obj.type] = (typeCounts[obj.type] ?? 0) + 1;
+    }
+    if (typeof obj?.id === "string") {
+      idCounts[obj.id] = (idCounts[obj.id] ?? 0) + 1;
+    }
+  }
+  const uniqueIds = Object.keys(idCounts).length;
+  let multiOccurrence = 0;
+  for (const c of Object.values(idCounts)) if (c > 1) multiOccurrence++;
+
+  // HTTP latency summary
+  let totalHttpLatency = 0;
+  for (const p of httpPairs) totalHttpLatency += p.timing.latencyMs;
+  const avgHttpLatency =
+    httpPairs.length > 0 ? (totalHttpLatency / httpPairs.length).toFixed(1) : "n/a";
+
+  const lines: string[] = [];
+  lines.push(`# Case: ${caseId}`);
+  lines.push("");
+  lines.push(`- **Run ID**: \`${metadata.runId}\``);
+  lines.push(`- **Started**: ${metadata.startedAt}`);
+  lines.push(`- **Ended**: ${metadata.endedAt ?? "—"}`);
+  lines.push(`- **Duration**: ${metadata.durationMs ?? "—"} ms`);
+  lines.push(
+    `- **Endpoint**: \`aws-platform region=${metadata.endpoint.awsRegion} workspace=${metadata.endpoint.workspaceId}\``,
+  );
+  lines.push("");
+
+  lines.push("## Notes");
+  lines.push("");
+  if (notes.length === 0) {
+    lines.push(
+      "> (无 notes;test 作者可通过 `recorder.addNote(text)` 加测试目的 / 观察重点 / 结果说明)",
+    );
+  } else {
+    for (const n of notes) lines.push(`- ${n}`);
+  }
+  lines.push("");
+
+  lines.push("## Summary");
+  lines.push("");
+  lines.push(
+    `- **Events**: ${events.length}(${uniqueIds} unique ids,${multiOccurrence} ids with multi-occurrence)`,
+  );
+  lines.push(`- **HTTP pairs**: ${httpPairs.length}(avg latency ${avgHttpLatency} ms)`);
+  lines.push(`- **Markers**: ${markers.length}`);
+  lines.push("");
+
+  if (Object.keys(typeCounts).length > 0) {
+    lines.push("## Event type counts");
+    lines.push("");
+    lines.push("| type | count |");
+    lines.push("|---|---|");
+    const sortedTypes = Object.entries(typeCounts).sort(([, a], [, b]) => b - a);
+    for (const [t, c] of sortedTypes) lines.push(`| \`${t}\` | ${c} |`);
+    lines.push("");
+  }
+
+  if (markers.length > 0) {
+    lines.push("## Markers");
+    lines.push("");
+    lines.push("| label | t (ms from start) |");
+    lines.push("|---|---|");
+    for (const m of markers) {
+      lines.push(`| \`${m.label}\` | ${m.timestamp.toFixed(1)} |`);
+    }
+    lines.push("");
+  }
+
+  if (httpPairs.length > 0) {
+    lines.push("## HTTP overview");
+    lines.push("");
+    lines.push("| # | method | url | status | latency (ms) | stream? |");
+    lines.push("|---|---|---|---|---|---|");
+    for (let i = 0; i < httpPairs.length; i++) {
+      const p = httpPairs[i]!;
+      lines.push(
+        `| ${i + 1} | ${p.request.method} | ${p.request.url} | ${p.response.status} | ${p.timing.latencyMs.toFixed(1)} | ${p.response.isStream ? "yes" : "no"} |`,
+      );
+    }
+    lines.push("");
+  }
+
+  lines.push("## Files");
+  lines.push("");
+  lines.push("- [`events.jsonl`](./events.jsonl) — SSE stream raw events");
+  lines.push("- [`http.jsonl`](./http.jsonl) — HTTP request/response pairs(no body)");
+  lines.push("- [`marks.json`](./marks.json) — timing marks");
+  lines.push("- [`metadata.json`](./metadata.json) — case context");
+  lines.push("");
+
+  lines.push("---");
+  lines.push("");
+  lines.push(
+    "**case.md = Recorder 自动生成 + test 作者 notes**。需要从 raw 数据提炼跨 case 事实时,在 `agentmatrix-notes/research/managed-agents/findings/` 新建 `F-NNNN-*.md` 引用此 artifact。",
+  );
+
+  return lines.join("\n") + "\n";
+}
+
 export function createRecorder(options: RecorderOptions): RecorderHandle {
   const config = getConfig();
   const allSecrets: string[] = [
@@ -214,6 +338,7 @@ export function createRecorder(options: RecorderOptions): RecorderHandle {
   const httpPairs: HttpPair[] = [];
   const markers: Marker[] = [];
   const additional: Record<string, unknown> = {};
+  const notes: string[] = [];
   const startedAt = new Date();
   const startedPerf = performance.now();
   const rootDir = options.rootDir ?? detectDefaultArtifactRoot();
@@ -289,6 +414,11 @@ export function createRecorder(options: RecorderOptions): RecorderHandle {
     addMetadata(key, value) {
       additional[key] = redactValue(value, allSecrets);
     },
+    addNote(text) {
+      // 不强制 redact note(测试作者写的,自己应避免泄密),
+      // 但走相同 secret 替换兜底,避免误把 env key 拷贝进 note
+      notes.push(redactString(String(text), allSecrets));
+    },
     async dump(): Promise<DumpResult> {
       await mkdir(artifactDir, { recursive: true });
       const endedAt = new Date();
@@ -302,15 +432,25 @@ export function createRecorder(options: RecorderOptions): RecorderHandle {
           workspaceId: config.workspaceId,
           awsRegion: config.awsRegion,
         },
+        notes: [...notes],
         additional,
       };
       const eventsJsonl = events.map((e) => JSON.stringify(e)).join("\n") + (events.length > 0 ? "\n" : "");
       const httpJsonl = httpPairs.map((p) => JSON.stringify(p)).join("\n") + (httpPairs.length > 0 ? "\n" : "");
+      const caseMarkdown = renderCaseMarkdown({
+        caseId: options.caseId,
+        metadata,
+        notes,
+        events,
+        httpPairs,
+        markers,
+      });
       await Promise.all([
         writeFile(resolve(artifactDir, "events.jsonl"), eventsJsonl, "utf8"),
         writeFile(resolve(artifactDir, "http.jsonl"), httpJsonl, "utf8"),
         writeFile(resolve(artifactDir, "marks.json"), JSON.stringify(markers, null, 2), "utf8"),
         writeFile(resolve(artifactDir, "metadata.json"), JSON.stringify(metadata, null, 2), "utf8"),
+        writeFile(resolve(artifactDir, "case.md"), caseMarkdown, "utf8"),
       ]);
       return {
         artifactDir,

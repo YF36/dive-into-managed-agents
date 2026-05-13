@@ -50,6 +50,8 @@ describe("smoke · end-to-end basic turn", () => {
 
   it("create session → send user.message → consume stream until idle", async () => {
     recorder = createRecorder({ caseId: "smoke/end-to-end-basic-turn" });
+    recorder.addNote("目的:验证 simple turn 端到端链路 + 产出 lifecycle event 顺序的实证 baseline");
+    recorder.addNote("观察重点:user.message 是否双相 occurrence(EV §1.3.2);session.status_running 是否瞬态;stop_reason 实际值");
     // 注入 recorder.fetch 让 SDK 所有 HTTP 都被 capture(URL / method / headers / status / timing)
     const client = getClient({ fetch: recorder.fetch });
     await client.ready;
@@ -104,6 +106,7 @@ describe("smoke · end-to-end basic turn", () => {
     console.log(`[smoke] type counts:`, typeCounts);
     recorder.addMetadata("type_counts", typeCounts);
     recorder.addMetadata("multi_occurrence_ids", multiOccurrence);
+    recorder.addNote(`结果:收到 ${events.length} events,${idGroups.size} unique ids,${multiOccurrence} ids 有 multi-occurrence`);
 
     // 不变量校验
     assertEventLogAppendOnly(events);
