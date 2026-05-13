@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.local
+.env.*.local
+.warmup.json
+perf-results/
+*.log
+.DS_Store

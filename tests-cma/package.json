@@ -1,0 +1,29 @@
+{
+  "name": "cma-tests",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "Claude Managed Agents 实测套件,服务于 AgentMatrix v1 RFC 验证",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:slow": "vitest run tests/performance --reporter=verbose",
+    "warmup": "tsx scripts/warm-up.ts",
+    "cleanup": "tsx scripts/cleanup.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "dotenv": "^16.4.5",
+    "ulid": "^2.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
