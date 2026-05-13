@@ -8,7 +8,7 @@
 
 | ID | Topic | Triggered by case | Affects AgentMatrix RFC? | Status |
 |---|---|---|---|---|
-| F-0001 | Session lifecycle event 顺序 | `tests-cma/tests/functional/smoke.test.ts` | EV §6.1 Session 4 态状态机 | 占位(Phase 0 demo,待 smoke 跑出实测数据回填) |
+| F-0001 | Session lifecycle event 顺序 | `tests-cma/tests/functional/smoke.test.ts` | EV §1.3.2 / §5.2 / §6.1 / §6.2 / §8 | **Verified** — 9 events / user.message 单 occurrence / Haiku 默认发 agent.thinking / CMA 即使单 agent 也发 thread events;run `01KRG59Y75YAB7G6T768BYQ0PS`(2026-05-13) |
 
 (Phase 1+ 用例会追加更多 finding)
 
