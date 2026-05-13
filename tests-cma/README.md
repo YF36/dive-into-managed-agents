@@ -10,6 +10,8 @@ Claude Managed Agents 实测代码,服务于 [AgentMatrix](https://github.com/..
 - 凭据来自**系统环境变量**(`ANTHROPIC_AWS_API_KEY` / `ANTHROPIC_AWS_WORKSPACE_ID` / `AWS_REGION`),由 `.bash_profile` 注入,**不写入 .env**。
 - AWS host 端 region 实测是 `ap-northeast-1`(东京);base URL 自动 `aws-external-anthropic.ap-northeast-1.api.aws`。
 
+**SDK 操作手册**:[`../docs/cma-aws-sdk-notes.md`](../docs/cma-aws-sdk-notes.md) —— 写 SDK 代码 / 排查 SDK 坑时先看这份。
+
 ## Quick Start(在 AWS host 上跑)
 
 ```bash

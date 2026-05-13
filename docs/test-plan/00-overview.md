@@ -137,6 +137,6 @@ npm run test:slow                       # 跑 @slow tag(默认 skip)
 
 | 日期 | Phase | 决策 | 触发证据 | 影响 |
 |---|---|---|---|---|
-| 2026-05-13 | 0 | **改用 `@anthropic-ai/aws-sdk` v0.3.0,放弃 `@anthropic-ai/sdk` + 手动 baseURL/auth 的 dual-mode 设计** | AWS host `my-aws:/home/ubuntu/hello.ts` 实测确认用 aws-sdk;调研发现 `AnthropicAws extends Anthropic`,自动暴露 `beta.*` 完整 CMA surface | `client.ts` 简化为单一路径;`package.json` 改依赖;`.env.example` 移除所有凭据字段;`90-aws-platform-notes.md` 重写 §3 / §4 |
+| 2026-05-13 | 0 | **改用 `@anthropic-ai/aws-sdk` v0.3.0,放弃 `@anthropic-ai/sdk` + 手动 baseURL/auth 的 dual-mode 设计** | AWS host `my-aws:/home/ubuntu/hello.ts` 实测确认用 aws-sdk;调研发现 `AnthropicAws extends Anthropic`,自动暴露 `beta.*` 完整 CMA surface(详见 [`../cma-aws-sdk-notes.md`](../cma-aws-sdk-notes.md))| `client.ts` 简化为单一路径;`package.json` 改依赖;`.env.example` 移除所有凭据字段;`90-aws-platform-notes.md` 重写 §3 / §4 |
 | 2026-05-13 | 0 | **凭据从系统 env 读,不进 `.env`** | 用户明示;AWS host 已把 `ANTHROPIC_AWS_API_KEY` 等配在 `.bash_profile` | `client.ts` 移除 `loadDotenv()`;测试代码 `assertRequiredEnv()` 严格 fail-fast |
 | 2026-05-13 | 0 | **SSH 必须用 login shell 才能读到 env**(`ssh -t my-aws bash -lc` 或交互式) | 非交互式 `ssh my-aws "node hello.ts"` 实测失败,env 全空 | Quick Start + 90 §9 写明 |

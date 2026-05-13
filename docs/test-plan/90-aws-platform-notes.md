@@ -48,6 +48,8 @@ const message = await client.messages.create({
 
 `AnthropicAws extends Anthropic` —— 自动暴露 `client.beta.{agents, environments, sessions, sessions.events, vaults, vaults.credentials, skills, memoryStores, files, models, webhooks}.*` 完整 CMA surface。
 
+**SDK 详细操作手册见独立文档**:[`../cma-aws-sdk-notes.md`](../cma-aws-sdk-notes.md)(构造选项完整表 + auth 5 级优先级源码引用 + region 解析 + `ready` Promise 语义 + 跟标准 SDK 关系 + 13 节)。
+
 ## 4. 必填环境变量(测试代码 assert)
 
 | 变量 | 值示例 | 用途 |
