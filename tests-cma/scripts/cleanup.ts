@@ -8,7 +8,7 @@
  * 不动 long-lived 资源(test-agent / test-environment)——它们留给下一轮跑复用。
  */
 
-import { getClient, getConfig, describeClient } from "../src/client.ts";
+import { getClient, getConfig, describeClient, clearRunFile, getRunFilePath } from "../src/client.ts";
 
 interface ArchivableResource {
   id: string;
@@ -67,6 +67,11 @@ async function main(): Promise<void> {
   console.log(
     `[cleanup] done. archived ${sessions.length} sessions, ${vaults.length} vaults.`,
   );
+
+  // H3 修复:删 .run.json,下次 `npm run test` 自动启动新 run_id。
+  // 也可手动 `rm tests-cma/.run.json` 提前重置。
+  clearRunFile();
+  console.log(`[cleanup] cleared ${getRunFilePath()} — next \`npm run test\` will start a fresh run`);
 }
 
 main().catch((err) => {

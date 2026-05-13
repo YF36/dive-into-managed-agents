@@ -83,6 +83,8 @@ tests-cma/
 - 每个 test 创建 session 但不创建新 agent / env
 - failing test 不阻塞 cleanup(`afterAll` + try/catch)
 - 所有 ephemeral 资源 metadata 带 `test_run_id`,`scripts/cleanup.ts` 按这个筛选
+- **`test_run_id` 由 `tests-cma/.run.json` 持久化**(gitignore)—— `npm run test` 自动建,`npm run cleanup` 自动删;让两个独立进程读到同一 id(Phase 0 review H3 修复)
+- `npm run cleanup` 当前只清 session + vault(Phase 0 范围);Phase 1+ 扩展 agents / environments / memory_stores / files / credentials
 
 ## SSH 注意事项
 

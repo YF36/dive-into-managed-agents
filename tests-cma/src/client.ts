@@ -19,6 +19,9 @@
  *   - 通过 systemd / launchd / 显式 source 注入 env
  */
 
+import { existsSync, readFileSync, writeFileSync, unlinkSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
 import AnthropicAws, { type AwsClientOptions } from "@anthropic-ai/aws-sdk";
 import { ulid } from "ulid";
 
@@ -27,6 +30,10 @@ const REQUIRED_ENV_VARS = [
   "ANTHROPIC_AWS_WORKSPACE_ID",
   "AWS_REGION",
 ] as const;
+
+const __filename = fileURLToPath(import.meta.url);
+const TESTS_CMA_ROOT = resolve(dirname(__filename), "..");
+const RUN_FILE = resolve(TESTS_CMA_ROOT, ".run.json");
 
 export interface CmaConfig {
   workspaceId: string;
@@ -52,13 +59,62 @@ export function assertRequiredEnv(): void {
   }
 }
 
+/**
+ * 返回当次 run 的 test_run_id。解析顺序:
+ *
+ *   1. `CMA_TEST_RUN_ID` env(显式覆盖,用于 CI / 跨进程共享)
+ *   2. `tests-cma/.run.json` 持久化文件(让 `npm run test` + `npm run cleanup`
+ *      两个独立进程读到同一个 run_id,这是 H3 修复的核心)
+ *   3. 新建 ULID + 写入 `.run.json`(第一次跑时自动建)
+ *
+ * `.run.json` 在 cleanup 跑完后删(下次 test 自动新建一个 run id)。
+ * 也可手动 `rm tests-cma/.run.json` 来开启全新 run。
+ */
+function resolveTestRunId(): string {
+  const envId = process.env["CMA_TEST_RUN_ID"];
+  if (envId) return envId;
+
+  if (existsSync(RUN_FILE)) {
+    try {
+      const raw = readFileSync(RUN_FILE, "utf8");
+      const parsed = JSON.parse(raw) as { run_id?: string };
+      if (parsed.run_id) return parsed.run_id;
+    } catch {
+      // 文件损坏,fall through 重建
+    }
+  }
+
+  const id = ulid();
+  writeFileSync(
+    RUN_FILE,
+    JSON.stringify({ run_id: id, created_at: new Date().toISOString() }, null, 2),
+  );
+  return id;
+}
+
+/** 返回 `.run.json` 的绝对路径(给 cleanup 跑完后删用)。 */
+export function getRunFilePath(): string {
+  return RUN_FILE;
+}
+
+/** Cleanup 收尾:删 `.run.json`,让下次 test 启动新 run。失败吞错。 */
+export function clearRunFile(): void {
+  if (existsSync(RUN_FILE)) {
+    try {
+      unlinkSync(RUN_FILE);
+    } catch {
+      // ignore
+    }
+  }
+}
+
 export function getConfig(): CmaConfig {
   if (cachedConfig) return cachedConfig;
   assertRequiredEnv();
   cachedConfig = {
     workspaceId: process.env["ANTHROPIC_AWS_WORKSPACE_ID"]!,
     awsRegion: process.env["AWS_REGION"]!,
-    testRunId: process.env["CMA_TEST_RUN_ID"] ?? ulid(),
+    testRunId: resolveTestRunId(),
     researchPreview: process.env["CMA_RESEARCH_PREVIEW"] === "true",
   };
   return cachedConfig;
@@ -90,7 +146,7 @@ export function resetClientCache(): void {
 
 export function describeClient(): string {
   const config = getConfig();
-  return `aws-platform region=${config.awsRegion} workspace=${config.workspaceId}`;
+  return `aws-platform region=${config.awsRegion} workspace=${config.workspaceId} run=${config.testRunId}`;
 }
 
 /**
