@@ -146,7 +146,9 @@ npm run test:slow                       # 跑 @slow tag(默认 skip)
 
 ## 10. 事实可信度 source taxonomy
 
-文档里的 fact / 不变量 / event 类型清单等,**每条都该带 source 标注**,让 reviewer 一眼看到可信度。Phase 0 review M5 揭示的根问题:`session.deleted` 是我从 SDK 类型 union 抄的,没在官方 docs cross-check,事实上官方 API ref 找不到它。这种 "二手汇编混进未验证条目"的风险需要从源头隔离。
+文档里的 fact / 不变量 / event 类型清单等,**每条都该带 source 标注**,让 reviewer 一眼看到可信度。Phase 0 review M5 揭示的根问题:`session.deleted` 起初是我从 SDK 类型 union 抄的,没在官方 docs cross-check;**2026-05-13 round-2 review 时官方 API ref 已经能找到** session.deleted 条目,这条事实从 `[source: SDK type, unverified]` 升级到 `[source: official docs + SDK type]`。这种 "二手汇编混进未验证条目"的风险需要从源头隔离,因此保留下面的 taxonomy。
+
+**`API ref` 不是独立分类**,它属于 `official docs` 的子集(Anthropic 官方 API reference 页面)— 引用时直接用 `[source: official docs]`,需要更细可在 message 里注明"per API ref"。
 
 **四级 taxonomy**(优先级从高到低):
 

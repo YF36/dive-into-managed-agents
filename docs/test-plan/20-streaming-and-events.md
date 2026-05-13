@@ -80,19 +80,75 @@ sibling notes repo (research/managed-agents/)/
 
 `event-corpus/` 跟 `artifacts/` 的区别:**artifacts 是每 case 完整原始数据**(用于审计 / 回放);**event-corpus 是每场景策展过的代表性样本**(用于跨 vendor 对照引用,人类可读)。corpus 文件少而精,artifacts 全而散。
 
-事实可信度标注沿用 [`00-overview.md` §10 source taxonomy](./00-overview.md):每条事件 / 字段 / 不变量都标 `[source: official docs | API ref | SDK type | 实测]`。
+事实可信度标注沿用 [`00-overview.md` §10 source taxonomy](./00-overview.md#10-事实可信度-source-taxonomy):四级 `[source: official docs | SDK type | 实测 | hypothesis]` + 联合标注。**`API ref` 不是独立分类**,它属于 `official docs` 的子集(Anthropic 官方 API reference 页面)— 引用时直接用 `[source: official docs]`。
 
 ## 20.0 测试基础设施 prep(执行前)
 
 | 项 | 工作 | 文件 |
 |---|---|---|
-| Catalog 生成脚本 | 从 `BetaManagedAgentsStreamSessionEvents` union 反射,输出 markdown 表(event type / payload TS 类型 / source) | `tests-cma/scripts/generate-event-catalog.ts`(新增)+ 输出 `20-event-catalog.generated.md` |
-| Raw SSE fetch helper | 绕过 SDK 直接 `fetch(stream URL)`,逐行读 `data:` / `event:` / `id:` / heartbeat | `tests-cma/src/utils/raw-sse.ts`(新增)|
-| `streamWithHistory` 实装 | Phase 0 stub → 完整 stream + list + 客户端两种 dedupe 模式 | `tests-cma/src/utils/stream.ts` 已 stub,Phase 2 补 |
-| Event schema validator | 按 event type 校验必填字段 + 类型 | `tests-cma/src/utils/invariants.ts:assertSchemaForType` |
-| Event corpus capture helper | 把当前 case 的 stream / list / send response 三路 dump 到 corpus 目录 | `tests-cma/src/utils/corpus.ts`(新增)|
+| Catalog 生成脚本(详见 §20.0.A)| 用 **TypeScript Compiler API / ts-morph** 解析 `node_modules/@anthropic-ai/sdk/**/*.d.ts`,提取事件 type union 成员;输出 markdown 表 | `tests-cma/scripts/generate-event-catalog.ts`(新增)+ 输出 `20-event-catalog.generated.md` |
+| Raw SSE fetch helper(详见 §20.0.B)| 绕过 SDK 直接 `fetch`,从 env 组装 auth/header,redact 后输出 wire 帧 | `tests-cma/src/utils/raw-sse.ts`(新增)|
+| `streamWithHistory` 实装(详见 §20.0.C)| Phase 0 stub → 三层(L0 / L1 / L2)collector 实现,§20.4 三层模型的代码侧 | `tests-cma/src/utils/stream.ts` 已 stub,Phase 2 补 |
+| Event schema validator | 按 event type 校验必填字段 + 类型(用 catalog 生成结果反推 schema)| `tests-cma/src/utils/invariants.ts:assertSchemaForType` |
+| Event corpus capture helper(详见 §20.0.D)| 把当前 case 的 send-response / stream / list 三路按 §20.2 分类 dump 到 corpus 目录 | `tests-cma/src/utils/corpus.ts`(新增)|
+| Mock MCP server(详见 §20.0.E)| 受控 MCP server:happy-path echo / 5xx / timeout 三种 tool,稳定触发 §20.6 MCP chain | `tests-cma/scripts/mock-mcp-server.ts`(新增)|
 
 这些基础设施先做,Phase 2 子 group 才能写。
+
+### 20.0.A Catalog 生成脚本 contract
+
+- 输入:`node_modules/@anthropic-ai/sdk` 安装目录(SDK package),读取 `**/*.d.ts`
+- 实现:**不能用运行时反射**(TS 类型编译期擦除);用 `ts-morph` 或 `typescript` compiler API parse,定位 `BetaManagedAgentsStreamSessionEvents`(或当前 SDK union 名)的 union members
+- 输出:`docs/test-plan/20-event-catalog.generated.md`,内容含:
+  - SDK package name + version(从 `package.json` 读)
+  - 解析的 `.d.ts` 路径
+  - 生成时间(ISO 8601)
+  - 每个 event type 一行 + 其 payload TS 类型 inline 展开 + source 标注(参考 [§10 source taxonomy](./00-overview.md))
+- 头部必须含警示注释:`<!-- AUTO-GENERATED, do not edit by hand. Run: npm run generate:event-catalog -->`
+
+### 20.0.B Raw SSE helper contract(auth + redaction)
+
+**输入**(从系统 env 读,绝不进 .env):
+- `ANTHROPIC_AWS_API_KEY`、`ANTHROPIC_AWS_WORKSPACE_ID`、`AWS_REGION`(参考 [00-overview §2 凭据](./00-overview.md))
+
+**Request 组装**:
+- Base URL:`https://aws-external-anthropic.{region}.api.aws/v1/sessions/{id}/events`
+- Headers:`Accept: text/event-stream`、`x-api-key: $ANTHROPIC_AWS_API_KEY`、`anthropic-workspace-id: $ANTHROPIC_AWS_WORKSPACE_ID`、`anthropic-beta: managed-agents-2026-04-01`
+- 用 `fetch` 直拉(不通过 SDK),`Response.body` 走 ReadableStream 逐行读
+
+**Output 落到 corpus**:
+- `raw-sse/<scenario>/raw-frames.txt` — 原始字节(已 redact)
+- `raw-sse/<scenario>/parsed-events.jsonl` — `data:` 行解析后的 JSON
+- `raw-sse/<scenario>/request-meta.json` — request-id + x-amzn-requestid + 时间戳
+
+**Redaction 强制**(参考 [Recorder.ts](https://github.com/YF36/dive-into-managed-agents/blob/main/tests-cma/src/utils/recorder.ts) 的 `SENSITIVE_HEADER_NAMES`):
+- 写 raw-frames.txt 前,删 `x-api-key` / `authorization` / `anthropic-workspace-id` / `cookie` 等所有敏感 header 整 value 替换为 `<redacted:xxxx>`
+- env secret `ANTHROPIC_AWS_API_KEY` 整 string-equal 替换(沿用 Recorder 已实现的 redactString)
+- **禁止把 raw header dump 写进 corpus** — header 单独走 redact 后 metadata,不写进 wire frame
+
+### 20.0.C streamWithHistory 三层 collector
+
+实现 §20.4 三层模型:
+- `collectL0(sessionId, opts)`:返回 `{stream, list, sendResponse?}` 三份独立 jsonl(完全不 dedupe)
+- `collectL1(sessionId, opts)`:基于 L0 输出,按 `(id, processed_at, payloadHash)` 跨 source dedupe,保留 ack transitions
+- `collectL2(sessionId, opts)`:基于 L1,按 id consolidate,UI view
+
+测试代码默认 expose 三层 collector API,case 按需选层。
+
+### 20.0.D Corpus helper
+
+`corpus.dump(scenarioName, collected)` 把 L0 / L1 / L2 三层产物按 §20.2 / §20.4 分目录落盘到 **sibling notes repo** `research/managed-agents/event-corpus/<scenarioName>/`。路径解析沿用 [Recorder.ts rootDir 探测逻辑](https://github.com/YF36/dive-into-managed-agents/blob/main/tests-cma/src/utils/recorder.ts)(`.local-config.json` siblingArtifactRoot 同根)。
+
+### 20.0.E Mock MCP server contract
+
+为什么需要:`.invalid` URL 大概率在 session create / agent.create validation / SDK 连接阶段就 fail,根本走不到 `agent.mcp_tool_use → agent.mcp_tool_result` 这条 chain。受控 mock server 才能稳定触发完整 lifecycle。
+
+提供三种 tool endpoint:
+- `/echo` — happy-path echo,返回 200 + payload(测 §20.6.2 MCP happy chain)
+- `/error` — 总返 5xx(测 §20.5.3 retries_exhausted)
+- `/slow` — 故意延迟 / hang(测 §20.5.4 status_rescheduled / network timeout)
+
+实现可以是简单 Node http 服务器(本机 localhost 端口),tests-cma 启动时 spawn 子进程。MCP 协议消息格式参考 [Model Context Protocol spec](https://modelcontextprotocol.io)。**只对本机 loopback 绑定**,不暴露端口。
 
 ## 20.1 Raw SSE Wire(SDK 之下的真 wire)
 
@@ -112,60 +168,84 @@ sibling notes repo (research/managed-agents/)/
 
 **产出**:`event-corpus/raw-sse/*.txt`(每种场景的 wire 帧)+ `findings/F-NNNN-cma-sse-wire-format.md`。
 
-## 20.2 Canonical Event Envelope(stream / list / send response 三路对比)
+## 20.2 Canonical Event Envelope(按事件来源拆两路 / 三路对比)
 
-每个事件在 3 个观测点出现:**stream**(SSE iterator)/ **list**(events.list)/ **send response**(POST /events 的返回值)。三路字段是否完全一致是协议设计的关键 — **如果 stream 有 `processed_at` 但 list 没有(或反之),透过 SDK 看到的不是同一个对象模型**。
+**关键区分**(2026-05-13 round-2 review 校准):事件按**来源**分两类,可观测路径数量不同:
+
+| 事件来源 | 可观测路径数 | 路径 |
+|---|---|---|
+| **Client-originated**(`user.*` 入站事件:message / interrupt / tool_confirmation / custom_tool_result / define_outcome) | **3 路** | stream(SSE iterator)+ list(events.list)+ **send response**(POST /events 的 echo) |
+| **Server-originated**(`agent.*` / `session.*` / `span.*` 全部) | **2 路** | stream + list(**没有 send response 这一路**,因为这些事件不由 client POST 产生) |
+
+→ 把所有事件强行套"三路对比"会卡在 schema generation;必须分开建模。
+
+### 20.2A Client-originated 三路对比(只覆盖 user.*)
 
 | Case | What | 反推 |
 |---|---|---|
-| 20.2.1 | 每个 event type 在 stream / list / send response 的字段全集对比 | 协议级 vs read-model 字段划分 |
-| 20.2.2 | event `id` 唯一性范围:同一 workspace / 多 session / thread vs primary stream 是否 ID 复用 | 协议是否需要 (workspace, session, thread) 三段 namespace |
-| 20.2.3 | created_at / updated_at / processed_at 三个时间戳的语义和单调性 | 协议字段语义文档化 |
-| 20.2.4 | usage / tool / outcome 等可选字段在不同 path 是否一致 | 字段稀疏 vs 全集 |
+| 20.2A.1 | 每个 user.* type 在 send response / stream / list 三路的字段集合对比 | POST 是 fire-and-forget 还是 echo-with-server-fields(如 processed_at 是否立刻 set)|
+| 20.2A.2 | send response 是否含 server 加的字段(id assign / created_at)| client 是否能从 POST 返回值拿到 id 而不必等 stream |
+| 20.2A.3 | send response 字段 vs stream 后续 emit 的同 id 字段差异 | 若 send response 缺 `processed_at`,stream 才补 — 印证双相 occurrence |
 
-**产出**:`event-corpus/envelope-fields/*.json`(每事件三路 dump 一份)+ envelope-fields 综合表 → `event-catalog.generated.md` 自动补全。
+### 20.2B Server-originated 两路对比(覆盖 agent.* / session.* / span.*)
+
+| Case | What | 反推 |
+|---|---|---|
+| 20.2B.1 | 每个 server-originated event 在 stream vs list 的字段全集对比 | stream 是 read-model 投影还是协议 source-of-truth |
+| 20.2B.2 | event `id` 唯一性范围:同一 workspace / 多 session / thread vs primary stream 是否 ID 复用 | 协议是否需要 (workspace, session, thread) 三段 namespace |
+| 20.2B.3 | created_at / processed_at(若有)时间戳语义和单调性 | 协议字段语义文档化 |
+| 20.2B.4 | usage / tool / outcome 等可选字段在 stream vs list 是否一致 | 字段稀疏 vs 全集 |
+
+**产出**:`event-corpus/envelope-fields/<event-type>/` 每事件目录,client-originated 含 `send-response.json` + `stream.jsonl` + `list.jsonl`;server-originated 仅含 `stream.jsonl` + `list.jsonl`。综合表回写 `event-catalog.generated.md`。
 
 ## 20.3 processed_at & occurrence semantics(Phase 2 核心)
 
 **最重要的 sub-section** — `processed_at` 决定了 event 协议是单相还是双相,这是 sibling notes repo `protocol` 章节的核心未决问题。
 
-Phase 1 F-0001 已确认:`user.message` 在 stream 里**只出现一次**,但当时没看 list 多次。Phase 2 必须搞清楚下面 6 条:
+**前置事实状态**(2026-05-13 round-2 review 校准):Phase 1 F-0001 是**低置信观察** — 旧 collector 用 dedupe-by-id 模式(§20.4 L2 UI consolidated),如果 user.message 在 stream 里真的发了 queued + processed 两次,旧 collector 也会合并成一次。**Phase 2 必须用 §20.4 L0(raw observations,完全不 dedupe)+ L1(recovered feed)复验**,不能把 F-0001 当 "single occurrence 已定论"。
 
 | Case | What | 反推 |
 |---|---|---|
-| 20.3.1 | user.message **stream** 里同 id 是否出现 2 次(queued + processed)| 协议是单相还是双相 occurrence |
+| 20.3.1 | **用 L0 收集器**重测 user.message stream 里同 id 出现次数(F-0001 复验)| 协议是单相还是双相 occurrence |
 | 20.3.2 | user.message **list** 在 ack 前 / ack 后两次拉取,同 id 对象 `processed_at` 字段差异 | list 是 snapshot view 还是 occurrence log |
-| 20.3.3 | events.send POST 返回值里是否含 queued event(立刻 echo back)| POST 是 fire-and-forget 还是 echo-with-ack |
+| 20.3.3 | events.send POST 返回值里 user.message 是否含 `processed_at`(立刻 echo back vs 等 ack)| POST 是 fire-and-forget 还是 echo-with-server-fields |
 | 20.3.4 | 先 list(ack 前)+ 立刻再 list(假定 ack 中)+ 等 turn 结束再 list:同 id 在三次 snapshot 的 processed_at 演变 | ack 状态机的中间态可见性 |
 | 20.3.5 | agent.* / session.* / span.* 事件:它们的 processed_at 是 always set on emit 还是有自己的双相?| 仅 user.* 走 queued-processed,还是全部事件?|
-| 20.3.6 | archive / delete session 后,list 仍可读,processed_at 字段是否还能变化 | terminal 状态 ack 冻结 |
+| 20.3.6 | **archived session** 后,list 仍可读(F-0006 已印证),processed_at 字段是否还能变化(若有 queued 卡在 archive 前)| terminal 状态 ack 冻结 |
+
+**注意**:**deleted session** 后 list 是否可读拆到 §20.5.7 单独测(archive 是 metadata flag,delete 是物理移除,行为不同)。
 
 **产出**:`findings/F-NNNN-processed-at-semantics.md`(顶级 finding,直接喂 protocol 章节)。
 
 ## 20.4 Stream + List Recovery(reconnect 协议反推)
 
-Phase 0 review 已校准 Reconnect 计划应区分两种 dedupe 模式 — 本节明确化:
+Phase 0 review 已校准 Reconnect 计划应区分多种 dedupe 模式 — 本节进一步明确化成**三层模型**(2026-05-13 round-2 review 校准:单纯"不 dedupe"会把 stream / list 跨 source 的同一观察值当成真实 double-occurrence,污染 sequence 字段决策结论)。
 
-### 两种模式
+### 三层模型
 
-| 模式 | 用途 | 实现 |
-|---|---|---|
-| **id-consolidating** | UI 端 — "同 id 算同一张卡片",ack 算字段更新 | `seenIds: Set<id>`,二次见 id 时只更新字段不新增 entry |
-| **occurrence-preserving** | Transport / recovery — 不能吞掉 queued + processed 两次 occurrence(若有)| 不 dedupe,每次 occurrence 都记录 |
+| 层 | 输入 | 输出语义 | dedupe 规则 |
+|---|---|---|---|
+| **L0 Raw observations** | 各 source(stream / list / send response)各自的原始观察序列 | 保留每路全部观察,**不跨 source 合并** | 完全无 dedupe — `stream.jsonl` + `list-snapshot.jsonl` + `send-response.json` 三路独立 dump |
+| **L1 Recovered feed** | 把 L0 三路合并成一条"已发生事件"流(reconnect / 历史回溯用) | 跨 source dedupe **同时保留 ack transition**:用 `(id, processed_at, payloadHash)` 三元组作为唯一 key | 若 L0 stream 和 list 各有一条 `id=X, processed_at=null` → 合并成 1 条;若 stream `id=X, processed_at=null` + list `id=X, processed_at=t1` → 保留 2 条(ack 前 + ack 后),不当成"double-occurrence" |
+| **L2 UI consolidated** | L1 进一步压缩为"每个 id 一张卡片",ack transition 算字段 update 而非新行 | 按 `id` 合并,后到的 processed_at 覆盖前面的 null | UI 端展示用 |
 
-如果用 id-consolidating 跑 reconnect 测试,**会吞掉关键 ack 信号**(F-0001 之所以漏掉 user.message double-occurrence 的可能性,就是因为 Phase 0 默认 dedupe by event_id)。
+→ **测试代码必须三层都实现并各自落 corpus**。把 L0 当 L1 用(完全不 dedupe)会把跨 source 重复当成真实 double-occurrence,误判 protocol 是否需要 sequence 字段。把 L1 当 L2 用(按 id 合并 ack)会吞掉 ack transition 这条关键 signal。
+
+### Phase 1 F-0001 的局限
+
+F-0001 是在 **L2 UI consolidated** 收集器下做的,所以漏掉了 user.message 是否有 queued + processed 两次 occurrence 的可能性(若 L0 stream 真的出 2 次,L2 会合并)。Phase 2 §20.3 / §20.4 必须用 **L0 + L1** 收集器复验。
 
 ### Cases
 
 | Case | What | 反推 |
 |---|---|---|
-| 20.4.1 | stream-first happy path(open stream → send → consume)无丢失 | 印证 quickstart 推荐顺序 |
-| 20.4.2 | send-then-stream race(明知错的顺序)漏哪些事件 — 是否漏 status_running、user.message ack? | client 不依照 quickstart 的代价 |
-| 20.4.3 | stream 断开 5s 期间制造 1 个事件(简单回复)→ 重连 + list seed:用 occurrence-preserving 模式合并能否恢复 | reconnect 协议是否需要 Last-Event-ID |
-| 20.4.4 | 同上但 60s 断开 + 制造 blocking event(tool requires_action)→ 验证状态机一致性 | 长断线场景的协议保障 |
-| 20.4.5 | id-consolidating vs occurrence-preserving 同输入下结果差异 | 两种模式各自适用场景 |
-| 20.4.6 | events.send 同一 payload 重 POST → 服务端是否生成重复 event(无 idempotency-key 的代价)| 协议是否要 idempotency-key |
-| 20.4.7 | `Last-Event-ID` header 实验性发送 — server 是否识别 | SSE 标准 reconnect 协议是否实现 |
+| 20.4.1 | stream-first happy path:L0 三路独立 capture(stream / list / send response)无丢失 | 印证 quickstart 推荐顺序;给 §20.3 提供基线 corpus |
+| 20.4.2 | send-then-stream race(明知错的顺序):L0 stream 漏掉哪些事件(status_running / user.message queued?)| client 不依照 quickstart 的代价 |
+| 20.4.3 | stream 断开 5s + 制造 1 个事件 → 重连 + list seed:L1 recovered feed 是否完整 | reconnect 协议是否需要 Last-Event-ID |
+| 20.4.4 | 同上但 60s + 制造 blocking event(tool requires_action)→ 验证 L1 状态机一致性 | 长断线场景的协议保障 |
+| 20.4.5 | **同一输入跑三层 collector**,对比 L0 / L1 / L2 产物 — 量化每层信息损失 | 三层各自适用场景 + 协议是否要 sequence 字段(若 L1 已足够,sequence 可省;否则必需)|
+| 20.4.6 | events.send 同一 payload 重 POST:L0 stream 是否多发,L1 是否能据 `payloadHash` dedupe 掉 | 协议是否要 idempotency-key(client 端 dedupe vs server 端 enforce)|
+| 20.4.7 | `Last-Event-ID` header 实验性发送 — server 是否识别 + 若识别,L1 是否可省 list seed | SSE 标准 reconnect 协议是否实现 |
 
 **产出**:`event-corpus/reconnect-scenarios/*` + `findings/F-NNNN-reconnect-protocol.md`。
 
@@ -181,7 +261,8 @@ Phase 1 F-0006 已建立 session 状态机基础(idle / running / terminated;arc
 | 20.5.4 | status_rescheduled 触发条件 + 自动恢复时的事件流 | rescheduling 是 internal 重试还是 client 可见 |
 | 20.5.5 | status_terminated(主动 archive vs 自然 end-of-life)的事件流差异 | terminated 是否区分原因 |
 | 20.5.6 | session.error 触发(MCP 不可达 / model overload)→ session.error event payload vs HTTP 4xx | in-band error event vs out-of-band HTTP error |
-| 20.5.7 | session.deleted event:delete 时 active stream 收到什么,然后 list 是否 404 | 关闭语义 + tombstone `[source: API reference]` |
+| 20.5.7A | **archived** session(`status=terminated`):后续 events.list 是否仍返回完整历史(F-0006 已印证)+ active stream 此时是否仍 open / close | 历史可读性 + active stream 命运 |
+| 20.5.7B | **deleted** session:delete 时 active stream 是否先收 `session.deleted` event 再 close,后续 events.list 返回 404 / 410 / 200+tombstone 中的哪一种 `[source: official docs — API ref 描述 deletion 发出 session.deleted 并终止 active stream]` | 物理删除的关闭语义 + tombstone 是 in-band event 还是 HTTP 状态 |
 | 20.5.8 | session object `status` 字段与 stream 内 session.status_* event 是否始终一致 | 协议状态机投影一致性 |
 
 **产出**:lifecycle event 跟 session status 字段的 state machine 图 → `event-corpus/lifecycle/*` + `findings/F-NNNN-session-lifecycle-events.md`。
@@ -204,7 +285,7 @@ Phase 1 F-0006 已建立 session 状态机基础(idle / running / terminated;arc
 | Case | What | 反推 |
 |---|---|---|
 | 20.6.1 | built-in tool 完整序列 capture | baseline tool lifecycle |
-| 20.6.2 | MCP tool 完整序列(用 .invalid URL 触发失败也行,关键看 tool_use / tool_result 事件)| MCP 与 built-in 字段差异 |
+| 20.6.2 | MCP tool 完整序列 — 用 §20.0.E mock MCP server 的 `/echo` endpoint 触发 happy-path,稳定看 agent.mcp_tool_use → agent.mcp_tool_result | MCP 与 built-in 字段差异 |
 | 20.6.3 | custom_tool 完整 blocking flow(声明 custom tool → trigger → resolve)| client gate 协议 |
 | 20.6.4 | **stop_reason.event_ids 引用** — blocking event 的 id 是否精确出现在 stop_reason | 协议级 explicit cause_event_id 雏形 |
 | 20.6.5 | partial resolve:多个 blocking event,只 resolve 一部分,session 是否重发 idle with remaining event_ids | partial resolve 是否在协议层支持 |
@@ -252,7 +333,7 @@ Phase 1 F-0006 已建立 session 状态机基础(idle / running / terminated;arc
 | 20.7.3 | events.list cursor:quiescent session 同 cursor 二次拉取字节级一致 | cursor 协议语义 1 |
 | 20.7.4 | events.list cursor:append 新事件后旧 cursor 是否仍稳定 | cursor 协议语义 2(moving view vs frozen view)|
 | 20.7.5 | events.list asc / desc 互通:asc cursor 能否在 desc 用 | cursor 方向独立性 |
-| 20.7.6 | events.list 在 archive / delete 后是否仍可读(对照 lifecycle)| 历史可读性边界 |
+| 20.7.6 | events.list 在 **archive 后**(F-0006 已印证可读)的边界 — 长期 archived 是否触发数据迁移 / 仍可走原 endpoint;**delete 后**单独走 §20.5.7B 不重复测 | 历史可读性边界 |
 | 20.7.7 | types[] / created_at filter | list filter 表达力 |
 
 **产出**:`20-event-catalog.generated.md`(每次 SDK 升级重跑)+ 每事件 schema snapshot。
