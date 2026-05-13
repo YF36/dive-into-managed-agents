@@ -25,5 +25,6 @@
   },
   "engines": {
     "node": ">=18.19.0"
-  }
+  },
+  "_engine_note": "host my-aws 跑 Node 18.19.1;AWS SDK 间接依赖(@aws-sdk/*)声明 >=20 但实际 18.19 跑得通(EBADENGINE 仅 warn)"
 }
