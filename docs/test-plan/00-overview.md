@@ -16,8 +16,10 @@
 
 | 维度 | CMA 现状 | 对测试方案的影响 |
 |---|---|---|
-| 接入路径 | Claude Platform on AWS(Anthropic-operated)| `90-aws-platform-notes.md` 描述前置项 |
+| 接入路径 | Claude Platform on AWS(Anthropic-operated),host `my-aws`,region `ap-northeast-1` | `90-aws-platform-notes.md` 描述前置项 |
 | Bedrock 经典 | **不支持 CMA** | 本任务不测 |
+| **SDK 包** | **`@anthropic-ai/aws-sdk` v0.3.0**(AnthropicAws extends Anthropic,自动暴露 `beta.*` 全 CMA surface)| 单一路径,无 dual-mode |
+| **凭据** | `ANTHROPIC_AWS_API_KEY` env(配在 `.bash_profile`)+ `ANTHROPIC_AWS_WORKSPACE_ID` env + `AWS_REGION` env | **绝不进 `.env` 文件** |
 | Event 类型数量 | ~30 种(含 `session.thread_*` ×4 + `span.outcome_evaluation_*` ×3 + `session.deleted`)| `20-streaming-and-events.md` 全覆盖 |
 | Session 状态机 | 4 态(`idle / running / rescheduling / terminated`)| 无 paused / archived(archive 是 metadata flag)|
 | Reconnect 协议 | 无 cursor / 无 `Last-Event-ID`;推荐客户端 stream + list + event_id 去重 | 测试代码必须实现客户端去重逻辑 |
@@ -91,39 +93,50 @@
 
 ## 7. AWS 接入前置 checklist
 
-(本节内容跟 `90-aws-platform-notes.md` 详尽版互为补充,这里只列 checklist)
+(本节内容跟 `90-aws-platform-notes.md` 详尽版互为补充,这里只列 checklist。**2026-05-13 已确认 host `my-aws` 全部就位**。)
 
-- [ ] Claude Platform on AWS workspace 已建,region 已选
-- [ ] `aws iam enable-outbound-web-identity-federation` 已执行
-- [ ] AWS Console 已 generate API key(注意不是 Claude Console 那个),或 WIF token-generator 已配
-- [ ] IAM principal 具备 ManagedAgents 调用权限
+- [x] Claude Platform on AWS workspace 已建(`wrkspc_01CzSuJFbKpu5jooFEQmLiFq`,region `ap-northeast-1`)
+- [x] `ANTHROPIC_AWS_API_KEY` / `ANTHROPIC_AWS_WORKSPACE_ID` / `AWS_REGION` 已写入 `/home/ubuntu/.bash_profile`
+- [x] Node 18.19 + `@anthropic-ai/aws-sdk@0.3.0` + `@anthropic-ai/sdk@0.95.2` 已 npm install
+- [x] `hello.ts` 端到端跑通(`client.messages.create` 返回正常)
 - [ ] research preview access 申请(若要测 Outcomes / Multi-agent):https://claude.com/form/claude-managed-agents
 
-未拿到时,可先以 direct API key 跑 Phase 0-3(direct mode);Phase 4 必须 AWS。
+## 8. Quick Start(在 AWS host 上跑)
 
-## 8. Quick Start
+**重要**:`ANTHROPIC_AWS_API_KEY` 等凭据在 `~/.bash_profile`,SSH 必须用 login shell 才能读到。
 
 ```bash
-cd dive-into-managed-agents/tests-cma
-cp .env.example .env                          # 填 ANTHROPIC_API_KEY
+# SSH 进交互式 shell(简单做法)
+ssh my-aws
+cd ~/proj/dive-into-managed-agents/tests-cma
 npm install
-npm run warmup                                # 创建 test-agent / test-environment,id 缓存
-npm run test                                  # 跑全部已有用例(Phase 0 阶段只有 smoke)
-npm run cleanup                               # archive 测试期间创建的 ephemeral session
+npm run warmup        # 创建 long-lived test-agent / test-environment,id 缓存
+npm run test          # Phase 0 只有 smoke
+npm run cleanup       # archive 测试期间创建的 ephemeral 资源
+```
+
+**一键远程跑**(本地 mac 直接调):
+
+```bash
+ssh -t my-aws bash -lc 'cd ~/proj/dive-into-managed-agents/tests-cma && npm run test'
 ```
 
 **只跑某类**:
 
 ```bash
-npm run test -- tests/functional                # 只跑功能
-npm run test -- tests/streaming                 # 只跑流
-npm run test:slow                               # 跑 @slow tag(默认 skip)
+npm run test -- tests/functional        # 只跑功能
+npm run test -- tests/streaming         # 只跑流
+npm run test:slow                       # 跑 @slow tag(默认 skip)
 ```
+
+**坑**:`ssh my-aws "cmd"`(不带 `-t bash -lc`)默认只 source `.bashrc`,**读不到 `.bash_profile` 的 env**,测试代码会 throw `Missing required env vars`。详见 `90-aws-platform-notes.md` §9。
 
 ## 9. 决策记录(随测试推进追加)
 
-> 这一节记录测试过程中"实测推翻了文档预期"或"做了重大方案调整"的事项。Phase 1 跑完时第一次填充。
+> 这一节记录测试过程中"实测推翻了文档预期"或"做了重大方案调整"的事项。
 
 | 日期 | Phase | 决策 | 触发证据 | 影响 |
 |---|---|---|---|---|
-| (TBD) | | | | |
+| 2026-05-13 | 0 | **改用 `@anthropic-ai/aws-sdk` v0.3.0,放弃 `@anthropic-ai/sdk` + 手动 baseURL/auth 的 dual-mode 设计** | AWS host `my-aws:/home/ubuntu/hello.ts` 实测确认用 aws-sdk;调研发现 `AnthropicAws extends Anthropic`,自动暴露 `beta.*` 完整 CMA surface | `client.ts` 简化为单一路径;`package.json` 改依赖;`.env.example` 移除所有凭据字段;`90-aws-platform-notes.md` 重写 §3 / §4 |
+| 2026-05-13 | 0 | **凭据从系统 env 读,不进 `.env`** | 用户明示;AWS host 已把 `ANTHROPIC_AWS_API_KEY` 等配在 `.bash_profile` | `client.ts` 移除 `loadDotenv()`;测试代码 `assertRequiredEnv()` 严格 fail-fast |
+| 2026-05-13 | 0 | **SSH 必须用 login shell 才能读到 env**(`ssh -t my-aws bash -lc` 或交互式) | 非交互式 `ssh my-aws "node hello.ts"` 实测失败,env 全空 | Quick Start + 90 §9 写明 |
