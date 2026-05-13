@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "private": true,
-  "description": "Claude Managed Agents 实测套件,服务于 AgentMatrix v1 RFC 验证",
+  "description": "Claude Managed Agents 实测套件 — 系统验证 CMA 行为 + 探测灰色地带 + 产 raw artifact",
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",

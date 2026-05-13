@@ -4,7 +4,7 @@
  * 这是产出物模型(详见 `docs/PRODUCTS.md`)的核心基础设施。
  * 测试代码默认丢掉 assert 之外的所有信号(stream events / HTTP traffic / timing),
  * Recorder 把这些 capture 下来,落到 `tests-cma/artifacts/<date>/<run_id>/<case-id>/`,
- * 后续团队成员可以反复参考、提炼 finding、回写到 AgentMatrix RFC。
+ * 后续团队成员可以反复参考、提炼 finding(详见跨 repo 产出物模型 PRODUCTS.md)。
  *
  * 工作流:
  *   const recorder = createRecorder({ caseId: "smoke/basic-turn" });

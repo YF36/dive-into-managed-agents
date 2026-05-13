@@ -6,9 +6,9 @@
 
 按重要性排序:
 
-1. **验证文档承诺的行为** —— 官方文档里所有 "must / will / returns" 字样的承诺,挑高频路径实测一遍,避免对错误的假设建 AgentMatrix RFC
-2. **探测"文档没说"的灰色地带** —— 调研阶段已识别 30+ 条 unknown 行为(详见 `60-agentmatrix-relevant.md`),实测填补,是本测试最大产出
-3. **给 AgentMatrix v1 设计提供一手数据** —— CMA 是 v1 RuntimeDriver 主要黑盒托管对象之一,kernel 设计大量决策依赖 CMA 真实行为
+1. **验证文档承诺的行为** —— 官方文档里所有 "must / will / returns" 字样的承诺,挑高频路径实测一遍
+2. **探测"文档没说"的灰色地带** —— 调研阶段已识别 30+ 条 unknown 行为,实测填补,是本测试最大产出
+3. **沉淀 raw artifact + finding** —— 作为不可重生的实证资产长期保留;具体产出物归属在 [agentmatrix-notes PRODUCTS.md](https://github.com/agentmatrix-labs/agentmatrix-notes/blob/main/research/managed-agents/PRODUCTS.md)
 
 **不是目标**:为团队"用好" CMA;给 Anthropic 产品提 bug;做安全 audit。
 
@@ -24,9 +24,9 @@
 | Session 状态机 | 4 态(`idle / running / rescheduling / terminated`)| 无 paused / archived(archive 是 metadata flag)|
 | Reconnect 协议 | 无 cursor / 无 `Last-Event-ID`;推荐客户端 stream + list + event_id 去重 | 测试代码必须实现客户端去重逻辑 |
 | events.send | 批量数组 `{events: []}`,**未文档化 idempotency-key** | 重要测试边界:重 POST 同 payload 行为 |
-| `processed_at` | 单字段,null → timestamp 单向变化 | 跟 AgentMatrix 双相 occurrence 模型有差异,需测兼容层 |
+| `processed_at` | 单字段,null → timestamp 单向变化 | 单相 occurrence;若上层用 client 要双相模型,需在 adapter 层模拟 |
 | Rate limit | org 级 create 300 rpm / read 600 rpm | **不打这个上限** |
-| Pause / resume / checkpoint | **不存在** | AgentMatrix v1 黑盒托管时这些字段都得 client 端模拟或 stub |
+| Pause / resume / checkpoint | **不存在** | 跨 vendor 兼容层若依赖这些字段需 client 端模拟或 stub |
 
 ## 3. In-scope / Out-of-scope
 
@@ -39,7 +39,7 @@
 - Vault 凭证注入非破坏性验证(token 物理隔离边界)
 - Multi-agent / Memory / Outcomes 三个 research preview(需 access 批准后)
 - 低成本 performance 基线(latency p50/p95/p99,不打 rate limit)
-- AgentMatrix RFC 关心的对照点实测
+- 跨 vendor 设计假设的对照实测(具体清单维护在 [agentmatrix-notes 那边的 plan 文档](https://github.com/agentmatrix-labs/agentmatrix-notes/blob/main/research/managed-agents/agentmatrix-rfc-validation-plan.md))
 
 ### Out-of-scope(明确不做,留 v2)
 
@@ -62,7 +62,7 @@
 | 2 | `20-streaming-and-events` + tests | 50-70 用例 | 2-3 |
 | 3 | `30-vault` + `40-multi-agent-memory-outcomes` + tests | 80-100 用例,RP 占位 | 3-4 |
 | 4 | `50-performance` + tests(AWS host 跑)| baseline 数据出来 | 1-2 |
-| 5 | `60-agentmatrix-relevant` + tests + 回写 AgentMatrix notes | RFC 各章节加"已实测"标记 | 1-2 |
+| 5 | [agentmatrix-notes RFC 对照清单](https://github.com/agentmatrix-labs/agentmatrix-notes/blob/main/research/managed-agents/agentmatrix-rfc-validation-plan.md) + tests + 回写 finding | RFC 假设逐条 verified | 1-2 |
 
 **每个 Phase 完工打 git tag** `cma-test-phase-N`,便于回滚 + 按 phase review。
 

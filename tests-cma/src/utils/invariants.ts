@@ -22,7 +22,7 @@ export class InvariantViolation extends Error {
  * Append-only:`created_at` 单调不降。
  *
  * **不**校验 id 唯一——CMA 同一 user.* event_id 会有 queued + processed
- * 两次 occurrence,这是合法的(EV §1.3.2)。需要校验 id 唯一时用
+ * 两次 occurrence,这是合法的(协议层双相 occurrence 语义)。需要校验 id 唯一时用
  * `assertEventIdsUnique`(明确知道是单 occurrence 集合时)。
  */
 export function assertEventLogAppendOnly(events: CollectedEvent[]): void {

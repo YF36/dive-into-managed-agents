@@ -12,7 +12,7 @@
 ## 关键不变量(覆盖所有 case)
 
 - `Agent.version` 单调递增 + no-op update **不增**
-- `Environment` **不版本化**(对照 AgentMatrix RFC §8.6 I2)
+- `Environment` **不版本化**(对比:Agent 有显式 `version` 字段,Environment 没有)
 - `Session.agent` 是 snapshot(创建后修改 agent 不影响 session)
 - `Vault credential` 的 secret 字段 **write-only**(GET 返回什么?待测)
 - Archive 不可逆(`active → archived`,无 unarchive)

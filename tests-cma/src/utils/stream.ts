@@ -7,7 +7,7 @@
  *   - H2 idle timeout:用 Promise.race(iter.next, setTimeout)让 stream 空闲时
  *     `maxWaitMs` 也能触发,不会卡到 vitest test timeout
  *   - M1 occurrence-preserving:**默认不按 event_id 去重**,保留 queued+processed
- *     双相 occurrence(这正是 AgentMatrix EV §1.3.2 想验证的语义)。需要 UI
+ *     双相 occurrence(协议层关键语义,需保留信号)。需要 UI
  *     consolidation 模式时显式传 `{ dedupeByEventId: true }`
  */
 
@@ -32,8 +32,8 @@ export interface CollectUntilOptions {
    * 按 event_id 去重(UI consolidation 模式)。
    *
    * **默认 false**——保留同一 event_id 的多次 occurrence(M1 修复:
-   * CMA 的 user.* 事件会以 queued + processed 形式出现两次,这是 AgentMatrix
-   * EV §1.3.2 决策二想验证的核心语义,默认去重会吞掉这个信号)。
+   * CMA 的 user.* 事件**可能**以 queued + processed 形式出现两次(协议层双相
+   * occurrence 语义),默认去重会吞掉这个信号)。
    *
    * 仅在测试明确模拟 UI 端"按 event_id 合并卡片"时设为 true。
    */

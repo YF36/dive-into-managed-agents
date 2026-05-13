@@ -53,7 +53,7 @@ describe("smoke · end-to-end basic turn", () => {
   it("create session → send user.message → consume stream until idle", async () => {
     recorder = createRecorder({ caseId: "smoke/end-to-end-basic-turn" });
     recorder.addNote("目的:验证 simple turn 端到端链路 + 产出 lifecycle event 顺序的实证 baseline");
-    recorder.addNote("观察重点:user.message 是否双相 occurrence(EV §1.3.2);session.status_running 是否瞬态;stop_reason 实际值");
+    recorder.addNote("观察重点:user.message 是否多 occurrence(processed_at null→timestamp 过渡);session.status_running 是否瞬态;stop_reason 实际值");
     // 注入 recorder.fetch 让 SDK 所有 HTTP 都被 capture(URL / method / headers / status / timing)
     const client = getClient({ fetch: recorder.fetch });
     await client.ready;
@@ -77,7 +77,7 @@ describe("smoke · end-to-end basic turn", () => {
 
     // H1 修复:stream-first 顺序由 runTurnAndCollect 内部保证。
     // 默认 occurrence-preserving(不按 event_id 去重),让我们能观察到 user.message
-    // 的 queued + processed 两次回流(M1 修复:这正是 EV §1.3.2 想验证的语义)。
+    // 的 queued + processed 两次回流(M1 修复:协议层双相 occurrence 语义关键信号)。
     recorder.mark("turn.start");
     const events = await runTurnAndCollect(
       sessionId!,
