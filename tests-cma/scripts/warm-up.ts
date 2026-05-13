@@ -9,7 +9,7 @@ import { writeFile, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { getClient, describeCurrentMode } from "../src/client.ts";
+import { getClient, describeClient } from "../src/client.ts";
 import { MINIMAL_AGENT_PARAMS } from "../src/fixtures/agents.ts";
 import { MINIMAL_ENVIRONMENT_PARAMS } from "../src/fixtures/environments.ts";
 
@@ -21,7 +21,7 @@ interface WarmupCache {
   environment_id?: string;
   agent_created_at?: string;
   environment_created_at?: string;
-  mode?: string;
+  endpoint_description?: string;
 }
 
 async function main(): Promise<void> {
@@ -31,7 +31,7 @@ async function main(): Promise<void> {
   if (existsSync(WARMUP_FILE) && !force) {
     cache = JSON.parse(await readFile(WARMUP_FILE, "utf8")) as WarmupCache;
     if (cache.agent_id && cache.environment_id) {
-      console.log(`[warmup] cache already populated (mode=${cache.mode}):`);
+      console.log(`[warmup] cache already populated (endpoint=${cache.endpoint_description}):`);
       console.log(`  agent_id       = ${cache.agent_id}`);
       console.log(`  environment_id = ${cache.environment_id}`);
       console.log(`  re-run with --force to recreate`);
@@ -40,17 +40,12 @@ async function main(): Promise<void> {
   }
 
   const client = getClient();
-  console.log(`[warmup] mode=${describeCurrentMode()}`);
+  await client.ready;
+  console.log(`[warmup] endpoint=${describeClient()}`);
 
   if (!cache.agent_id) {
     console.log("[warmup] creating shared test-agent ...");
-    const agent = await (client as unknown as {
-      beta: {
-        agents: {
-          create: (p: Record<string, unknown>) => Promise<{ id: string; created_at?: string }>;
-        };
-      };
-    }).beta.agents.create({ ...MINIMAL_AGENT_PARAMS });
+    const agent = await client.beta.agents.create({ ...MINIMAL_AGENT_PARAMS });
     cache.agent_id = agent.id;
     cache.agent_created_at = agent.created_at;
     console.log(`  agent_id = ${agent.id}`);
@@ -58,19 +53,13 @@ async function main(): Promise<void> {
 
   if (!cache.environment_id) {
     console.log("[warmup] creating shared test-environment ...");
-    const env = await (client as unknown as {
-      beta: {
-        environments: {
-          create: (p: Record<string, unknown>) => Promise<{ id: string; created_at?: string }>;
-        };
-      };
-    }).beta.environments.create({ ...MINIMAL_ENVIRONMENT_PARAMS });
+    const env = await client.beta.environments.create({ ...MINIMAL_ENVIRONMENT_PARAMS });
     cache.environment_id = env.id;
     cache.environment_created_at = env.created_at;
     console.log(`  environment_id = ${env.id}`);
   }
 
-  cache.mode = describeCurrentMode();
+  cache.endpoint_description = describeClient();
   await writeFile(WARMUP_FILE, JSON.stringify(cache, null, 2), "utf8");
   console.log(`[warmup] cached to ${WARMUP_FILE}`);
 }

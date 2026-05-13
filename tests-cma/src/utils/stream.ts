@@ -50,14 +50,11 @@ export async function collectUntil(
   const collected: CollectedEvent[] = [];
   const seenIds = new Set<string>();
 
-  // SDK stream 兼容 `for await`
-  // 实际 sessions.events.stream 的精确调用形态在 Phase 0 smoke test 落地后回到这里精修
-  const stream = (await (client as unknown as {
-    beta: { sessions: { events: { stream: (id: string) => AsyncIterable<CollectedEvent> } } };
-  }).beta.sessions.events.stream(sessionId)) as AsyncIterable<CollectedEvent>;
+  const stream = await client.beta.sessions.events.stream(sessionId);
 
-  for await (const event of stream) {
+  for await (const rawEvent of stream) {
     if (Date.now() - startedAt > maxWaitMs) break;
+    const event = rawEvent as unknown as CollectedEvent;
     if (!event.id || seenIds.has(event.id)) continue;
     seenIds.add(event.id);
     collected.push(event);

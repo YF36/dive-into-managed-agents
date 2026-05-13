@@ -8,21 +8,20 @@
  * 不动 long-lived 资源(test-agent / test-environment)——它们留给下一轮跑复用。
  */
 
-import { getClient, getConfig, describeCurrentMode } from "../src/client.ts";
+import { getClient, getConfig, describeClient } from "../src/client.ts";
 
-interface Resource {
+interface ArchivableResource {
   id: string;
-  status?: string;
   archived_at?: string | null;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, unknown> | null;
 }
 
-async function listByRunId(
-  listFn: () => AsyncIterable<Resource>,
+async function listMatching(
+  iterable: AsyncIterable<ArchivableResource>,
   runId: string,
-): Promise<Resource[]> {
-  const matched: Resource[] = [];
-  for await (const r of listFn()) {
+): Promise<ArchivableResource[]> {
+  const matched: ArchivableResource[] = [];
+  for await (const r of iterable) {
     if (r.archived_at) continue;
     if ((r.metadata?.["test_run_id"] as string | undefined) === runId) {
       matched.push(r);
@@ -34,26 +33,17 @@ async function listByRunId(
 async function main(): Promise<void> {
   const config = getConfig();
   const client = getClient();
-  console.log(`[cleanup] mode=${describeCurrentMode()} run_id=${config.testRunId}`);
-
-  const beta = (client as unknown as {
-    beta: {
-      sessions: {
-        list: () => AsyncIterable<Resource>;
-        archive: (id: string) => Promise<void>;
-      };
-      vaults: {
-        list: () => AsyncIterable<Resource>;
-        archive: (id: string) => Promise<void>;
-      };
-    };
-  }).beta;
+  await client.ready;
+  console.log(`[cleanup] endpoint=${describeClient()} run_id=${config.testRunId}`);
 
   console.log("[cleanup] scanning sessions ...");
-  const sessions = await listByRunId(() => beta.sessions.list(), config.testRunId);
+  const sessions = await listMatching(
+    client.beta.sessions.list() as unknown as AsyncIterable<ArchivableResource>,
+    config.testRunId,
+  );
   for (const s of sessions) {
     try {
-      await beta.sessions.archive(s.id);
+      await client.beta.sessions.archive(s.id);
       console.log(`  archived session ${s.id}`);
     } catch (err) {
       console.warn(`  archive session ${s.id} failed:`, err);
@@ -61,17 +51,22 @@ async function main(): Promise<void> {
   }
 
   console.log("[cleanup] scanning vaults ...");
-  const vaults = await listByRunId(() => beta.vaults.list(), config.testRunId);
+  const vaults = await listMatching(
+    client.beta.vaults.list() as unknown as AsyncIterable<ArchivableResource>,
+    config.testRunId,
+  );
   for (const v of vaults) {
     try {
-      await beta.vaults.archive(v.id);
+      await client.beta.vaults.archive(v.id);
       console.log(`  archived vault ${v.id}`);
     } catch (err) {
       console.warn(`  archive vault ${v.id} failed:`, err);
     }
   }
 
-  console.log(`[cleanup] done. archived ${sessions.length} sessions, ${vaults.length} vaults.`);
+  console.log(
+    `[cleanup] done. archived ${sessions.length} sessions, ${vaults.length} vaults.`,
+  );
 }
 
 main().catch((err) => {

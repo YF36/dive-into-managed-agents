@@ -2,7 +2,7 @@
  * Phase 0 smoke test:验证基本端到端链路可跑通。
  *
  * 流程:
- *   1. getClient() 配置正确
+ *   1. getClient() 配置正确 + await client.ready
  *   2. 拿到 shared agent / environment id
  *   3. 创建 session
  *   4. send `user.message`
@@ -13,8 +13,8 @@
  * 期望:1 个 test pass + 控制台打印 event 类型计数。
  */
 
-import { describe, it, expect, afterEach } from "vitest";
-import { describeCurrentMode, getClient } from "../../src/client.ts";
+import { afterEach, describe, expect, it } from "vitest";
+import { describeClient, getClient } from "../../src/client.ts";
 import { getSharedAgentId } from "../../src/fixtures/agents.ts";
 import { getSharedEnvironmentId } from "../../src/fixtures/environments.ts";
 import { createTestSession, safeArchive } from "../../src/fixtures/sessions.ts";
@@ -30,7 +30,9 @@ describe("smoke · end-to-end basic turn", () => {
   });
 
   it("create session → send user.message → consume stream until idle", async () => {
-    console.log(`[smoke] mode=${describeCurrentMode()}`);
+    const client = getClient();
+    await client.ready;
+    console.log(`[smoke] endpoint=${describeClient()}`);
 
     const agentId = await getSharedAgentId();
     const envId = await getSharedEnvironmentId();
@@ -42,16 +44,7 @@ describe("smoke · end-to-end basic turn", () => {
     expect(sessionId).toBeTruthy();
     expect(["idle", "running"]).toContain(session.status);
 
-    const client = getClient();
-    await (client as unknown as {
-      beta: {
-        sessions: {
-          events: {
-            send: (sid: string, body: Record<string, unknown>) => Promise<unknown>;
-          };
-        };
-      };
-    }).beta.sessions.events.send(sessionId!, {
+    await client.beta.sessions.events.send(sessionId!, {
       events: [
         {
           type: "user.message",

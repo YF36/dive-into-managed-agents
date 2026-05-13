@@ -13,8 +13,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
-    "dotenv": "^16.4.5",
+    "@anthropic-ai/aws-sdk": "0.3.0",
+    "@anthropic-ai/sdk": "0.95.2",
     "ulid": "^2.3.0"
   },
   "devDependencies": {
@@ -24,6 +24,6 @@
     "vitest": "^2.1.0"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=18.19.0"
   }
 }

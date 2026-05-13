@@ -1,12 +1,13 @@
 /**
  * Agent fixture。warmup 阶段创建一个 long-lived test-agent,id 写入 .warmup.json。
- * 测试代码通过 getSharedAgent() 拿 id,不重复创建。
+ * 测试代码通过 getSharedAgentId() 拿 id,不重复创建。
  */
 
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import type AnthropicAws from "@anthropic-ai/aws-sdk";
 import { getClient, tagWithRunId } from "../client.ts";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -19,16 +20,15 @@ export interface WarmupCache {
   environment_created_at?: string;
 }
 
-/**
- * 最小可用 agent spec。Phase 0 smoke 用。后续按需扩展。
- */
-export const MINIMAL_AGENT_PARAMS = {
+type AgentCreateParams = Parameters<AnthropicAws["beta"]["agents"]["create"]>[0];
+
+export const MINIMAL_AGENT_PARAMS: AgentCreateParams = {
   name: "cma-test-agent",
-  model: "claude-haiku-4-5" as const,
+  model: "claude-haiku-4-5",
   system:
     "你是一个用于自动化测试的最小 agent。简洁回答,不展开。除非测试代码明确要求,否则不使用工具。",
   description: "Long-lived test agent. Do not manually delete.",
-} as const;
+};
 
 export async function loadWarmupCache(): Promise<WarmupCache> {
   if (!existsSync(WARMUP_FILE)) return {};
@@ -50,16 +50,11 @@ export async function getSharedAgentId(): Promise<string> {
  * 创建一个 ephemeral agent(测试需要全新 agent 时用)。
  * metadata 自动打 test_run_id,cleanup 时一并 archive。
  */
-export async function createEphemeralAgent(
-  overrides: Partial<typeof MINIMAL_AGENT_PARAMS> = {},
-) {
+export async function createEphemeralAgent(overrides: Partial<AgentCreateParams> = {}) {
   const client = getClient();
-  // SDK 实际入口在 Phase 0 跑 smoke 时确认
-  return await (client as unknown as {
-    beta: { agents: { create: (params: Record<string, unknown>) => Promise<{ id: string }> } };
-  }).beta.agents.create({
+  return await client.beta.agents.create({
     ...MINIMAL_AGENT_PARAMS,
     ...overrides,
-    metadata: tagWithRunId(undefined),
+    metadata: tagWithRunId(),
   });
 }

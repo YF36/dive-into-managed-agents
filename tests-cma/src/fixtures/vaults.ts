@@ -1,34 +1,28 @@
 /**
- * Vault + Credential fixture。Phase 3 vault test 启用前为 stub。
+ * Vault + Credential fixture。Phase 3 vault test 启用前为最小骨架。
  */
 
+import type AnthropicAws from "@anthropic-ai/aws-sdk";
 import { getClient, tagWithRunId } from "../client.ts";
+
+type VaultCreateParams = Parameters<AnthropicAws["beta"]["vaults"]["create"]>[0];
 
 export interface CreateTestVaultOptions {
   displayName?: string;
 }
 
-export async function createTestVault(options: CreateTestVaultOptions = {}): Promise<{
-  id: string;
-}> {
+export async function createTestVault(options: CreateTestVaultOptions = {}) {
   const client = getClient();
-  return await (client as unknown as {
-    beta: {
-      vaults: {
-        create: (params: Record<string, unknown>) => Promise<{ id: string }>;
-      };
-    };
-  }).beta.vaults.create({
+  const params: VaultCreateParams = {
     display_name: options.displayName ?? "cma-test-vault",
-    metadata: tagWithRunId(undefined),
-  });
+    metadata: tagWithRunId(),
+  };
+  return await client.beta.vaults.create(params);
 }
 
 export async function archiveVault(vaultId: string): Promise<void> {
   const client = getClient();
-  await (client as unknown as {
-    beta: { vaults: { archive: (id: string) => Promise<void> } };
-  }).beta.vaults.archive(vaultId);
+  await client.beta.vaults.archive(vaultId);
 }
 
 export async function safeArchiveVault(vaultId: string | undefined): Promise<void> {

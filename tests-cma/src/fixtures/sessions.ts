@@ -2,55 +2,43 @@
  * Session fixture。每个 test 创建新 session,test 结束后 archive。
  */
 
+import type AnthropicAws from "@anthropic-ai/aws-sdk";
 import { getClient, tagWithRunId } from "../client.ts";
 import { getSharedAgentId } from "./agents.ts";
 import { getSharedEnvironmentId } from "./environments.ts";
 
+type SessionCreateParams = Parameters<AnthropicAws["beta"]["sessions"]["create"]>[0];
+
 export interface CreateTestSessionOptions {
   agentId?: string;
   environmentId?: string;
-  vaultIds?: string[];
+  vaultIds?: SessionCreateParams["vault_ids"];
   title?: string;
-  resources?: Array<Record<string, unknown>>;
+  resources?: SessionCreateParams["resources"];
 }
 
-export async function createTestSession(
-  options: CreateTestSessionOptions = {},
-): Promise<{ id: string; status: string }> {
+export async function createTestSession(options: CreateTestSessionOptions = {}) {
   const client = getClient();
   const agentId = options.agentId ?? (await getSharedAgentId());
   const environmentId = options.environmentId ?? (await getSharedEnvironmentId());
 
-  return await (client as unknown as {
-    beta: {
-      sessions: {
-        create: (
-          params: Record<string, unknown>,
-        ) => Promise<{ id: string; status: string }>;
-      };
-    };
-  }).beta.sessions.create({
+  return await client.beta.sessions.create({
     agent: agentId,
     environment_id: environmentId,
     title: options.title ?? "cma-test-session",
     vault_ids: options.vaultIds,
     resources: options.resources,
-    metadata: tagWithRunId(undefined),
+    metadata: tagWithRunId(),
   });
 }
 
 export async function archiveSession(sessionId: string): Promise<void> {
   const client = getClient();
-  await (client as unknown as {
-    beta: {
-      sessions: { archive: (id: string) => Promise<void> };
-    };
-  }).beta.sessions.archive(sessionId);
+  await client.beta.sessions.archive(sessionId);
 }
 
 /**
- * Test helper:beforeEach 创建 session,afterEach archive。
- * 失败的 archive 不阻塞 cleanup(吞错)。
+ * Test helper:test 结束后 archive。失败不阻塞 cleanup(吞错)。
  */
 export async function safeArchive(sessionId: string | undefined): Promise<void> {
   if (!sessionId) return;
