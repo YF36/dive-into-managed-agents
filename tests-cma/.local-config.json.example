@@ -1,0 +1,4 @@
+{
+  "_doc": "复制为 .local-config.json(gitignored)并填实际路径。Recorder 从这里读 sibling notes repo 位置,raw artifact 落到那里长期保留。详见 INTERNAL.md。",
+  "siblingArtifactRoot": "../../<your-sibling-notes-repo>/research/managed-agents/artifacts"
+}

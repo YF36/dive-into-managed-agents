@@ -5,9 +5,9 @@
 ## 1. 文档定位:什么时候读这份
 
 - 团队成员第一次用 `@anthropic-ai/aws-sdk` 写代码:看 §3-§6
-- 写 CMA 测试 / AgentMatrix RuntimeDriver,需要理解 auth / region / CMA surface 怎么暴露:看 §4-§8
+- 写 CMA 测试 / 思考 vendor-neutral SDK 设计,需要理解 auth / region / CMA surface 怎么暴露:看 §4-§8
 - 踩到 SDK 坑(workspaceId throw / region 没解析 / 401):看 §9 + §10
-- 思考 AgentMatrix v1 的客户端 SDK 形态,想借鉴 / 偏离 CMA:看 §11
+- 跟标准 `@anthropic-ai/sdk` 的对照:看 §11
 
 不需要读这份的场景:写单纯的 `client.messages.create()` 应用代码——`hello.ts` 4 行就够。
 
@@ -279,22 +279,7 @@ const client1 = new Anthropic({ ... });
 const client2 = new AnthropicAws({ ... });
 ```
 
-## 12. 跟 AgentMatrix 设计的关系
-
-CMA 这套 SDK 设计对 AgentMatrix v1 客户端 SDK 设计有 4 条直接借鉴:
-
-| CMA 做法 | AgentMatrix 启发 |
-|---|---|
-| **`AnthropicAws extends Anthropic`,自动暴露完整能力面** | AgentMatrix 不同部署模式(self-hosted / Anthropic-hosted / AWS-hosted)用同一种 SDK,只换 base client class;不要每种模式独立 SDK |
-| **Beta header 自动注入** | AgentMatrix v1 protocol version header 也应该 SDK 自动加,不要让 user 手动设 |
-| **`workspaceId` 是 strong invariant**(SDK 构造时 throw) | AgentMatrix `tenant_id` / `namespace_id` 也应是构造 / 第一个请求时 fail-fast,不要等业务报错才发现 missing |
-| **`ready` Promise + `prepareOptions` 自动 await** | AgentMatrix SDK 需要 async resolve 时(比如 region / capability negotiation),用同样的"显式 await 让错误前置 + 内部自动 await 兜底"模式 |
-
-**反例**(CMA 这条我们不应该照抄):
-- `peer dep >=0.50.3 <1` 太宽松 —— AgentMatrix client SDK 应当**严格 pin major + minor**(`~1.2.0`),避免上游 minor bump 破坏下游
-- 4 行能跑通但 4 个隐藏前置项(env / Node / package install / IMDS reachable)—— AgentMatrix SDK 应该在 `new Client()` 那一刻就把所有前置项检查 + 友好报错,而不是让 user 自己排查
-
-## 13. 引用 + 源码路径
+## 12. 引用 + 源码路径
 
 源码权威路径(my-aws):
 

@@ -6,6 +6,7 @@ coverage/
 .env.*.local
 .warmup.json
 .run.json
+.local-config.json
 artifacts/
 perf-results/
 *.log

@@ -23,7 +23,7 @@
  *   - Redaction 基于 string-equal 替换(已知 secret),Phase 1+ 可加 regex / 字段级 schema 化 redact
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { writeFile, mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
@@ -31,29 +31,53 @@ import { getConfig } from "../client.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const TESTS_CMA_ROOT = resolve(dirname(__filename), "../..");
+const LOCAL_CONFIG_FILE = resolve(TESTS_CMA_ROOT, ".local-config.json");
+
+interface LocalConfig {
+  /**
+   * sibling 外部 notes repo 中存放 artifact 的根目录,**相对于 tests-cma/ 的路径**。
+   * 例如 `../../<notes-repo-name>/research/managed-agents/artifacts`。
+   *
+   * 该字段通过 `.local-config.json`(gitignored)配置,真实 sibling repo 名不入 git。
+   * 新 dev 上手时:`cp .local-config.json.example .local-config.json` 并填实际路径。
+   */
+  siblingArtifactRoot?: string;
+}
 
 /**
  * Artifact 落盘根目录解析(优先级从高到低):
  *
  *   1. `CMA_ARTIFACT_ROOT` env 显式覆盖
- *   2. 自动探测 sibling repo `<dive-into>/../agentmatrix-notes/research/managed-agents/artifacts/`
- *      —— 这是 raw 数据的**长期归宿**(agentmatrix-notes commit,跟 finding 同 repo,
- *      AWS 环境回收也不丢)
- *   3. fallback 到本地 `tests-cma/artifacts/`(gitignored,仅在 agentmatrix-notes 不存在
- *      时兜底,例如新 dev 还没 clone notes repo)
+ *   2. `.local-config.json` 配置 `siblingArtifactRoot`(gitignored)—— 落 sibling
+ *      knowledge repo 是 raw 数据的**长期归宿**(commit + push 永久保留,本机环境
+ *      回收也不丢)
+ *   3. fallback 到本地 `tests-cma/artifacts/`(gitignored,仅当 .local-config.json
+ *      不存在 / 配置失效时兜底,例如新 dev 还没建 config)
  *
- * 探测依据是 `agentmatrix-notes/research/managed-agents/` 目录是否存在,而非顶层
- * agentmatrix-notes/ —— 后者可能存在但内部结构异常。
+ * Sibling repo 名 / GitHub URL 等具体跨 repo context 见 repo 根的 `INTERNAL.md`
+ * (gitignored,本机维护者读)。
  */
+function loadLocalConfig(): LocalConfig | null {
+  if (!existsSync(LOCAL_CONFIG_FILE)) return null;
+  try {
+    return JSON.parse(readFileSync(LOCAL_CONFIG_FILE, "utf8")) as LocalConfig;
+  } catch {
+    return null;
+  }
+}
+
 function detectDefaultArtifactRoot(): string {
   const env = process.env["CMA_ARTIFACT_ROOT"];
   if (env) return resolve(env);
-  const sibling = resolve(
-    TESTS_CMA_ROOT,
-    "../../agentmatrix-notes/research/managed-agents/artifacts",
-  );
-  const siblingParent = dirname(sibling); // .../agentmatrix-notes/research/managed-agents
-  if (existsSync(siblingParent)) return sibling;
+
+  const localConfig = loadLocalConfig();
+  if (localConfig?.siblingArtifactRoot) {
+    const sibling = resolve(TESTS_CMA_ROOT, localConfig.siblingArtifactRoot);
+    // 探测依据是 sibling root 的父目录是否存在(若 root 不存在但父目录在,允许
+    // Recorder mkdir 创建 root 子目录);若父目录都不存在,fallback 本地
+    if (existsSync(dirname(sibling))) return sibling;
+  }
+
   return resolve(TESTS_CMA_ROOT, "artifacts");
 }
 
@@ -322,7 +346,7 @@ function renderCaseMarkdown(input: CaseMarkdownInput): string {
   lines.push("---");
   lines.push("");
   lines.push(
-    "**case.md = Recorder 自动生成 + test 作者 notes**。需要从 raw 数据提炼跨 case 事实时,在 `agentmatrix-notes/research/managed-agents/findings/` 新建 `F-NNNN-*.md` 引用此 artifact。",
+    "**case.md = Recorder 自动生成 + test 作者 notes**。raw 数据深挖回到 events.jsonl / http.jsonl;需要提炼成长期 finding 时,详见 sibling notes repo 的 findings/ 目录(内部维护者参考 INTERNAL.md)。",
   );
 
   return lines.join("\n") + "\n";

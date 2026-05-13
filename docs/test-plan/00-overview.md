@@ -8,7 +8,7 @@
 
 1. **验证文档承诺的行为** —— 官方文档里所有 "must / will / returns" 字样的承诺,挑高频路径实测一遍
 2. **探测"文档没说"的灰色地带** —— 调研阶段已识别 30+ 条 unknown 行为,实测填补,是本测试最大产出
-3. **沉淀 raw artifact + finding** —— 作为不可重生的实证资产长期保留;具体产出物归属在 [agentmatrix-notes PRODUCTS.md](https://github.com/agentmatrix-labs/agentmatrix-notes/blob/main/research/managed-agents/PRODUCTS.md)
+3. **沉淀 raw artifact + finding** —— 作为不可重生的实证资产长期保留;产出物 workflow 在 sibling notes repo 维护(本机维护者详见 `INTERNAL.md`)
 
 **不是目标**:为团队"用好" CMA;给 Anthropic 产品提 bug;做安全 audit。
 
@@ -39,7 +39,7 @@
 - Vault 凭证注入非破坏性验证(token 物理隔离边界)
 - Multi-agent / Memory / Outcomes 三个 research preview(需 access 批准后)
 - 低成本 performance 基线(latency p50/p95/p99,不打 rate limit)
-- 跨 vendor 设计假设的对照实测(具体清单维护在 [agentmatrix-notes 那边的 plan 文档](https://github.com/agentmatrix-labs/agentmatrix-notes/blob/main/research/managed-agents/agentmatrix-rfc-validation-plan.md))
+- 跨 vendor 设计假设的对照实测(具体清单维护在 sibling notes repo,详见 `INTERNAL.md`)
 
 ### Out-of-scope(明确不做,留 v2)
 
@@ -62,7 +62,7 @@
 | 2 | `20-streaming-and-events` + tests | 50-70 用例 | 2-3 |
 | 3 | `30-vault` + `40-multi-agent-memory-outcomes` + tests | 80-100 用例,RP 占位 | 3-4 |
 | 4 | `50-performance` + tests(AWS host 跑)| baseline 数据出来 | 1-2 |
-| 5 | [agentmatrix-notes RFC 对照清单](https://github.com/agentmatrix-labs/agentmatrix-notes/blob/main/research/managed-agents/agentmatrix-rfc-validation-plan.md) + tests + 回写 finding | RFC 假设逐条 verified | 1-2 |
+| 5 | 跨 vendor RFC 对照清单(sibling notes repo 维护)+ tests + 回写 finding | RFC 假设逐条 verified | 1-2 |
 
 **每个 Phase 完工打 git tag** `cma-test-phase-N`,便于回滚 + 按 phase review。
 

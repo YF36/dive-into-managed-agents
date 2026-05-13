@@ -1,0 +1,14 @@
+# Repo-level gitignore(顶层)
+# tests-cma 子项目自己有 .gitignore,管理 node_modules / artifacts 等
+
+# 跨 repo 真实 context,只给本机维护者 / AI 助手参考
+INTERNAL.md
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.swp
