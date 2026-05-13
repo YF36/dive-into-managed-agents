@@ -380,46 +380,53 @@ describe("10.1 Agent CRUD", () => {
   it("10.1.11 mcp_servers 上限 20 边界", async () => {
     recorder = createRecorder({ caseId: "10.1.11/mcp-servers-limit" });
     recorder.addNote("目的:验证 mcp_servers 数量 20 是否硬上限");
+    recorder.addNote("**FINDING 候选**(本 case 首次跑暴露):CMA 强制 declared mcp_servers 必须在 tools 中有 mcp_toolset 引用,否则 400");
     const client = getClient({ fetch: recorder.fetch });
     await client.ready;
 
-    // 用占位 URL(不实际 connect)填到 20
-    const okMcp: AgentCreateParams["mcp_servers"] = Array.from({ length: 20 }, (_, i) => ({
-      type: "url",
-      name: `probe-${i}`,
-      url: `https://example.invalid/probe-${i}`,
-    })) as AgentCreateParams["mcp_servers"];
+    // 用占位 URL + 配套 mcp_toolset 引用(CMA 强制 declared → referenced)
+    const makeMcpAndTools = (n: number): Pick<AgentCreateParams, "mcp_servers" | "tools"> => ({
+      mcp_servers: Array.from({ length: n }, (_, i) => ({
+        type: "url" as const,
+        name: `probe-${i}`,
+        url: `https://example.invalid/probe-${i}`,
+      })) as AgentCreateParams["mcp_servers"],
+      tools: Array.from({ length: n }, (_, i) => ({
+        type: "mcp_toolset" as const,
+        mcp_server_name: `probe-${i}`,
+      })) as AgentCreateParams["tools"],
+    });
 
     const okAgent = await client.beta.agents.create({
       ...MINIMAL_PARAMS,
       name: genName("10-1-11-ok"),
-      mcp_servers: okMcp,
+      ...makeMcpAndTools(20),
       metadata: tagWithRunId(),
     });
     trackAgent(okAgent.id, client);
-    recorder.addNote(`✓ ok case:20 mcp_servers → 200,agent.id=${okAgent.id}`);
+    recorder.addNote(`✓ ok case:20 mcp_servers + 20 mcp_toolset → 200,agent.id=${okAgent.id}`);
 
-    // 21 → 预期 reject
+    // 21 → 预期 reject(假设 20 是硬上限)
     let overflowStatus: number | undefined;
-    const overflowMcp: AgentCreateParams["mcp_servers"] = Array.from({ length: 21 }, (_, i) => ({
-      type: "url",
-      name: `probe-${i}`,
-      url: `https://example.invalid/probe-${i}`,
-    })) as AgentCreateParams["mcp_servers"];
+    let overflowMessage: string | undefined;
     try {
       const overflowAgent = await client.beta.agents.create({
         ...MINIMAL_PARAMS,
         name: genName("10-1-11-overflow"),
-        mcp_servers: overflowMcp,
+        ...makeMcpAndTools(21),
         metadata: tagWithRunId(),
       });
       trackAgent(overflowAgent.id, client);
       recorder.addNote("⚠ FINDING 候选:21 mcp_servers 仍接受(超出文档承诺 20)");
     } catch (err) {
-      overflowStatus = (err as { status?: number } | null)?.status;
+      const e = err as { status?: number; error?: { error?: { message?: string } } } | null;
+      overflowStatus = e?.status;
+      overflowMessage = e?.error?.error?.message;
       recorder.addNote(`✓ overflow case:21 mcp_servers 被 reject,status=${overflowStatus}`);
+      if (overflowMessage) recorder.addNote(`error message: ${overflowMessage}`);
     }
     recorder.addMetadata("overflow_status", overflowStatus);
+    recorder.addMetadata("overflow_message", overflowMessage);
   });
 
   /** 10.1.12 tools 上限 128 边界 */
