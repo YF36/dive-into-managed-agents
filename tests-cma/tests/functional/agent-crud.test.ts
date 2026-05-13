@@ -151,7 +151,9 @@ describe("10.1 Agent CRUD", () => {
     trackAgent(v1.id, client);
     expect(v1.version).toBe(1);
 
+    // 注:SDK 强制要 version 字段(OCC 显式声明 expected version)— 这本身就是 finding
     const v2 = await client.beta.agents.update(v1.id, {
+      version: v1.version,
       description: "10.1.4 v2 description",
     });
     expect(v2.version).toBe(2);
@@ -180,12 +182,14 @@ describe("10.1 Agent CRUD", () => {
     trackAgent(agent.id, client);
 
     const updated = await client.beta.agents.update(agent.id, {
+      version: agent.version,
       description: `10.1.5 updated at ${new Date().toISOString()}`,
     });
 
     expect(updated.version).toBe(agent.version + 1);
     expect(updated.id).toBe(agent.id);
     recorder.addNote(`结果:create version=${agent.version},update 后 version=${updated.version}`);
+    recorder.addNote("**FINDING 候选**:SDK update 强制要 expected version 字段 → CMA 服务端 SDK level 实现 OCC(explicit version handshake)");
   });
 
   /** 10.1.6 no-op update → version 不变 */
@@ -205,6 +209,7 @@ describe("10.1 Agent CRUD", () => {
 
     // 完全相同的 description → no-op
     const updated = await client.beta.agents.update(agent.id, {
+      version: agent.version,
       description: "10.1.6 fixed description",
     });
 
@@ -218,11 +223,11 @@ describe("10.1 Agent CRUD", () => {
     expect(updated.version).toBeGreaterThanOrEqual(agent.version);
   });
 
-  /** 10.1.7 update with stale version → 试水 OCC */
-  it("10.1.7 update with stale version (OCC probe)", async () => {
+  /** 10.1.7 update with stale version → OCC reject 行为 */
+  it("10.1.7 update with stale version → OCC reject", async () => {
     recorder = createRecorder({ caseId: "10.1.7/agent-update-stale-version" });
-    recorder.addNote("目的:试水 CMA 是否实现 OCC(Optimistic Concurrency Control)");
-    recorder.addNote("方法:bump 到 v2,然后用 v1 的(可能存在的)expected_version 参数 update,看响应");
+    recorder.addNote("目的:验证 CMA 服务端 OCC 实现 — bump 到 v2 后用 v1 update 应该被 reject");
+    recorder.addNote("背景:SDK 强制 update 要传 version 字段(typecheck 推翻原假设 — OCC 是 first-class API)");
     const client = getClient({ fetch: recorder.fetch });
     await client.ready;
 
@@ -233,38 +238,38 @@ describe("10.1 Agent CRUD", () => {
     });
     trackAgent(v1.id, client);
 
-    const v2 = await client.beta.agents.update(v1.id, { description: "bumped to v2" });
+    const v2 = await client.beta.agents.update(v1.id, {
+      version: v1.version,
+      description: "bumped to v2",
+    });
     expect(v2.version).toBe(2);
 
-    // 试水:用 (假设的)expected_version 参数指 v1 来 update。SDK 类型可能不接受这个字段,
-    // 这本身就是 finding —— 说明 CMA 不暴露 OCC。我们用 type assertion 强行传。
-    let occOutcome: "supported_409" | "supported_412" | "not_implemented_200" | "rejected_400" | "unknown" = "unknown";
+    let outcome: "rejected_400" | "rejected_409" | "rejected_412" | "rejected_other" | "accepted_unexpectedly" = "rejected_other";
     let errorStatus: number | undefined;
+    let errorType: string | undefined;
     try {
-      const result = await (client.beta.agents.update as unknown as (
-        id: string,
-        body: Record<string, unknown>,
-      ) => Promise<{ version: number }>)(v1.id, {
-        description: "stale update",
-        expected_version: 1,
+      // stale:服务端已 v2,我们传 version=1
+      await client.beta.agents.update(v1.id, {
+        version: 1,
+        description: "stale update should fail",
       });
-      // 若 SDK / CMA 接受并 200 返回,说明 OCC 不 enforce
-      occOutcome = "not_implemented_200";
-      recorder.addNote(`实测:CMA 接受 stale expected_version,返回 200(version=${result.version}) → CMA 不实现 OCC`);
+      outcome = "accepted_unexpectedly";
+      recorder.addNote("⚠ FINDING:CMA 居然接受 stale version!OCC 未 enforce");
     } catch (err) {
-      const status = (err as { status?: number } | null)?.status;
-      errorStatus = status;
-      if (status === 409) occOutcome = "supported_409";
-      else if (status === 412) occOutcome = "supported_412";
-      else if (status === 400) occOutcome = "rejected_400";
-      recorder.addNote(`实测:CMA 拒绝 stale update,status=${status} → ${occOutcome}`);
+      const e = err as { status?: number; error?: { type?: string } } | null;
+      errorStatus = e?.status;
+      errorType = e?.error?.type;
+      if (errorStatus === 400) outcome = "rejected_400";
+      else if (errorStatus === 409) outcome = "rejected_409";
+      else if (errorStatus === 412) outcome = "rejected_412";
+      recorder.addNote(`实测:stale update reject,status=${errorStatus} type=${errorType} → ${outcome}`);
     }
 
-    recorder.addMetadata("occ_outcome", occOutcome);
+    recorder.addMetadata("occ_outcome", outcome);
     recorder.addMetadata("error_status", errorStatus);
-    recorder.addNote(`FINDING 候选:OCC 行为 = ${occOutcome}`);
-    // 不强 expect 特定结果 — 这条 case 主要产 finding 不产 pass/fail
-    expect(occOutcome).not.toBe("unknown");
+    recorder.addMetadata("error_type", errorType);
+    recorder.addNote(`**FINDING 候选**:CMA OCC reject status = ${errorStatus}(${outcome})`);
+    expect(outcome).not.toBe("accepted_unexpectedly");
   });
 
   /** 10.1.8 archive → archived_at 非 null */
