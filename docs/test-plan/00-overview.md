@@ -20,7 +20,7 @@
 | Bedrock 经典 | **不支持 CMA** | 本任务不测 |
 | **SDK 包** | **`@anthropic-ai/aws-sdk` v0.3.0**(AnthropicAws extends Anthropic,自动暴露 `beta.*` 全 CMA surface)| 单一路径,无 dual-mode |
 | **凭据** | `ANTHROPIC_AWS_API_KEY` env(配在 `.bash_profile`)+ `ANTHROPIC_AWS_WORKSPACE_ID` env + `AWS_REGION` env | **绝不进 `.env` 文件** |
-| Event 类型数量 | ~30 种(从 SDK 类型 union 抓出)`[source: SDK type + API ref;详见 §10 + 20-streaming §20.7 stable/gated 分类]` | `20-streaming-and-events.md` 全覆盖(Phase 2 协议研究计划)|
+| Event 类型数量 | ~30 种(从 SDK 类型 union 抓出)`[source: official docs + SDK type;详见 §10 + 20-streaming §20.7 stable/gated 分类]` | `20-streaming-and-events.md` 全覆盖(Phase 2 协议研究计划)|
 | Session 状态机 | 4 态(`idle / running / rescheduling / terminated`)`[source: Phase 1 F-0006 实测 — archive 同时改 status=terminated,推翻"archive 仅 metadata flag"假设]` | Phase 2 进一步刻画 status 字段与 lifecycle event 的投影 |
 | Reconnect 协议 | 无 cursor / 无 `Last-Event-ID`;推荐客户端 stream + list + 客户端去重 | **两种 dedupe 模式**:UI consolidation 按 id 合并;transport/recovery 必须 occurrence-preserving(20-streaming §20.4)|
 | events.send | 批量数组 `{events: []}`,**未文档化 idempotency-key** | 重要测试边界:重 POST 同 payload 行为(20-streaming §20.4.6)|
@@ -162,6 +162,6 @@ npm run test:slow                       # 跑 @slow tag(默认 skip)
 **两种联合标注**(实际很常见):
 
 - `[source: official docs + SDK type]` — 两边都有,最稳
-- `[source: SDK type, unverified in official API ref]` — SDK 暴露但官方 docs 找不到,**重点测试目标**
+- `[source: SDK type, unverified in official docs]` — SDK 暴露但官方 docs 找不到,**重点测试目标**(API ref 属于 official docs 子集,不再用 "official API ref" 这个旧叫法)
 
 **Phase 1 计划**:跑脚本从 SDK 类型 union 生成 `event-catalog.generated.md`,本仓库所有文档引用 generated 文档而非手写 — 消除"二手汇编漂移"风险。Phase 0 文档先手动标 source,Phase 1+ retrofit 自动化。
