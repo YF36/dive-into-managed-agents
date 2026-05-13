@@ -24,7 +24,7 @@ CMA 的三个 research preview feature:
 - 40.1.1 coordinator + 3 sub-agent 最小 happy path
 - 40.1.2 sub-agent 内声明 callable_agents → 文档说 "depth > 1 ignored",实测是 reject 还是 silently drop
 - 40.1.3 thread 数 25 上限:第 26 个 thread 创建的错误码
-- 40.1.4 `agent.delegation` event payload schema
+- 40.1.4 thread message 流 schema(`agent.thread_message_sent` / `agent.thread_message_received` payload + `from_session_thread_id` / `to_session_thread_id` lineage)`[source: SDK type;`agent.delegation` 是早期二手汇编误称,SDK union 未列,Phase 3 实测确认 multi-agent 委派的实际事件流形态]`
 - 40.1.5 sub-agent return summary,验证 coordinator 拿到的不是详细 history
 - 40.1.6 共享 filesystem 并发:两 sub-agent 同时写 `/work/result.json`,验证有无锁(预期无;应用层自己协调)
 - 40.1.7 coordinator interrupt 时所有非 archived thread 行为

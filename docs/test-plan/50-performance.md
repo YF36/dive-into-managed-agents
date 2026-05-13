@@ -37,7 +37,7 @@
 ### 52. 跑环境
 
 - AWS host,跟 workspace 同 region
-- 跑前确认网络稳定(`ping api.anthropic.com` 抖动 < 10ms)
+- 跑前确认网络稳定(`ping aws-external-anthropic.ap-northeast-1.api.aws` 抖动 < 10ms;**不是** `api.anthropic.com` —— 我们走 AWS endpoint 不走 direct API)
 - 跑前 cleanup 所有 ephemeral test resource(避免影响 SDK fixture)
 
 ## 用例分组(Phase 4 展开)

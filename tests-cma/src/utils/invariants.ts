@@ -96,7 +96,12 @@ export function assertProcessedAtMonotonic(snapshots: CollectedEvent[]): void {
   const id = snapshots[0]?.id;
   if (!id) throw new InvariantViolation("snapshot_has_id", "first snapshot missing id");
 
+  // Phase 0 review M2 修复:状态机校验完整三条:
+  //   - 同 id 在所有 snapshot 中保持一致
+  //   - 一旦见到非 null timestamp,后续不能回到 null(processed_at_regressed_to_null)
+  //   - 多次见到非 null,值必须一致(processed_at_immutable_once_set)
   let firstTimestamp: string | undefined;
+  let seenProcessed = false;
   for (let i = 0; i < snapshots.length; i++) {
     const snap = snapshots[i];
     if (!snap) continue;
@@ -109,12 +114,18 @@ export function assertProcessedAtMonotonic(snapshots: CollectedEvent[]): void {
     if (snap.processed_at != null) {
       if (firstTimestamp === undefined) {
         firstTimestamp = snap.processed_at;
+        seenProcessed = true;
       } else if (snap.processed_at !== firstTimestamp) {
         throw new InvariantViolation(
           "processed_at_immutable_once_set",
           `${firstTimestamp} != ${snap.processed_at}`,
         );
       }
+    } else if (seenProcessed) {
+      throw new InvariantViolation(
+        "processed_at_regressed_to_null",
+        `snapshot[${i}] (id=${id}) processed_at=null after previously seeing ${firstTimestamp}`,
+      );
     }
   }
 }

@@ -74,7 +74,7 @@ tests-cma/
 │   └── agentmatrix/          Phase 5
 └── scripts/
     ├── warm-up.ts            创建 long-lived test-agent / test-environment
-    └── cleanup.ts            archive 测试期间创建的所有 ephemeral 资源
+    └── cleanup.ts            archive 测试期间创建的 ephemeral 资源(Phase 0: 只清 session+vault)
 ```
 
 ## 资源治理

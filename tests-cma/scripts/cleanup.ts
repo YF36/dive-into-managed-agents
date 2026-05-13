@@ -6,6 +6,12 @@
  * cleanup 列出所有当前 run_id 的资源,统一 archive。
  *
  * 不动 long-lived 资源(test-agent / test-environment)——它们留给下一轮跑复用。
+ *
+ * Phase 0 review H1 修复:**只有全部成功才 clearRunFile()**。否则保留 .run.json
+ * 让下次 `npm run cleanup` 仍能扫到失败的资源重试,exit non-zero 让 CI / 用户感知。
+ *
+ * Phase 0 边界(M2 配套):当前只清 session + vault。Phase 1+ 用例创建 ephemeral
+ * agents / environments / memory_stores / files / credentials 时,需要扩展 cleanup。
  */
 
 import { getClient, getConfig, describeClient, clearRunFile, getRunFilePath } from "../src/client.ts";
@@ -30,6 +36,26 @@ async function listMatching(
   return matched;
 }
 
+async function archiveAll<T extends ArchivableResource>(
+  resources: T[],
+  label: string,
+  archiveFn: (id: string) => Promise<unknown>,
+): Promise<{ archived: number; failed: number }> {
+  let archived = 0;
+  let failed = 0;
+  for (const r of resources) {
+    try {
+      await archiveFn(r.id);
+      archived++;
+      console.log(`  archived ${label} ${r.id}`);
+    } catch (err) {
+      failed++;
+      console.warn(`  archive ${label} ${r.id} failed:`, err);
+    }
+  }
+  return { archived, failed };
+}
+
 async function main(): Promise<void> {
   const config = getConfig();
   const client = getClient();
@@ -41,37 +67,38 @@ async function main(): Promise<void> {
     client.beta.sessions.list() as unknown as AsyncIterable<ArchivableResource>,
     config.testRunId,
   );
-  for (const s of sessions) {
-    try {
-      await client.beta.sessions.archive(s.id);
-      console.log(`  archived session ${s.id}`);
-    } catch (err) {
-      console.warn(`  archive session ${s.id} failed:`, err);
-    }
-  }
+  const sessionStats = await archiveAll(sessions, "session", (id) =>
+    client.beta.sessions.archive(id),
+  );
 
   console.log("[cleanup] scanning vaults ...");
   const vaults = await listMatching(
     client.beta.vaults.list() as unknown as AsyncIterable<ArchivableResource>,
     config.testRunId,
   );
-  for (const v of vaults) {
-    try {
-      await client.beta.vaults.archive(v.id);
-      console.log(`  archived vault ${v.id}`);
-    } catch (err) {
-      console.warn(`  archive vault ${v.id} failed:`, err);
-    }
-  }
-
-  console.log(
-    `[cleanup] done. archived ${sessions.length} sessions, ${vaults.length} vaults.`,
+  const vaultStats = await archiveAll(vaults, "vault", (id) =>
+    client.beta.vaults.archive(id),
   );
 
-  // H3 修复:删 .run.json,下次 `npm run test` 自动启动新 run_id。
-  // 也可手动 `rm tests-cma/.run.json` 提前重置。
-  clearRunFile();
-  console.log(`[cleanup] cleared ${getRunFilePath()} — next \`npm run test\` will start a fresh run`);
+  const totalArchived = sessionStats.archived + vaultStats.archived;
+  const totalFailed = sessionStats.failed + vaultStats.failed;
+
+  console.log(
+    `[cleanup] done. archived ${totalArchived} resources (sessions ${sessionStats.archived}/${sessions.length}, vaults ${vaultStats.archived}/${vaults.length}); ${totalFailed} failed.`,
+  );
+
+  // H1 修复:只有全部成功才 clear .run.json;否则保留让下次 cleanup 仍能扫到。
+  if (totalFailed === 0) {
+    clearRunFile();
+    console.log(
+      `[cleanup] cleared ${getRunFilePath()} — next \`npm run test\` will start a fresh run`,
+    );
+  } else {
+    console.error(
+      `[cleanup] ${totalFailed} archive failure(s); preserving ${getRunFilePath()} for retry. Re-run \`npm run cleanup\` after fixing the root cause.`,
+    );
+    process.exit(1);
+  }
 }
 
 main().catch((err) => {

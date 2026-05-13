@@ -170,9 +170,23 @@ export async function runTurnAndCollect(
   const stream = await client.beta.sessions.events.stream(sessionId);
 
   // 2. 发 user event(stream 已经在 buffer)
-  await client.beta.sessions.events.send(sessionId, sendBody);
+  //
+  // Phase 0 review M1 修复:send 抛错时,stream 还开着,要显式关掉避免 SSE
+  // 连接泄漏(后续 negative API tests 可能挂住)。consumeStream 内部有 finally
+  // 关 stream,但只在成功进入 consume 时才执行 — send 失败这条路绕过它。
+  try {
+    await client.beta.sessions.events.send(sessionId, sendBody);
+  } catch (err) {
+    try {
+      const iter = (stream as AsyncIterable<unknown>)[Symbol.asyncIterator]();
+      await iter.return?.();
+    } catch {
+      // 关 stream 失败吞错,优先 rethrow 原 send error
+    }
+    throw err;
+  }
 
-  // 3. 消费 buffer + 后续事件,带 idle timeout 兜底
+  // 3. 消费 buffer + 后续事件,带 idle timeout 兜底(consumeStream 内部 finally 关 stream)
   return await consumeStream(stream, options);
 }
 

@@ -20,7 +20,7 @@
 | Bedrock 经典 | **不支持 CMA** | 本任务不测 |
 | **SDK 包** | **`@anthropic-ai/aws-sdk` v0.3.0**(AnthropicAws extends Anthropic,自动暴露 `beta.*` 全 CMA surface)| 单一路径,无 dual-mode |
 | **凭据** | `ANTHROPIC_AWS_API_KEY` env(配在 `.bash_profile`)+ `ANTHROPIC_AWS_WORKSPACE_ID` env + `AWS_REGION` env | **绝不进 `.env` 文件** |
-| Event 类型数量 | ~30 种(含 `session.thread_*` ×4 + `span.outcome_evaluation_*` ×3 + `session.deleted`)| `20-streaming-and-events.md` 全覆盖 |
+| Event 类型数量 | ~30 种(从 SDK 类型 union 抓出)`[source: SDK type;部分如 session.deleted 未在官方 API ref 验证,详见 §10 source taxonomy + 20-streaming §20.3]` | `20-streaming-and-events.md` 全覆盖 |
 | Session 状态机 | 4 态(`idle / running / rescheduling / terminated`)| 无 paused / archived(archive 是 metadata flag)|
 | Reconnect 协议 | 无 cursor / 无 `Last-Event-ID`;推荐客户端 stream + list + event_id 去重 | 测试代码必须实现客户端去重逻辑 |
 | events.send | 批量数组 `{events: []}`,**未文档化 idempotency-key** | 重要测试边界:重 POST 同 payload 行为 |
@@ -85,10 +85,13 @@
 
 | 断言函数 | 适用场景 |
 |---|---|
-| `assertEventLogAppendOnly(events)` | 同 session 内 event 数组 id 唯一 + 时间单调 |
-| `assertProcessedAtMonotonic(eventsOverTime)` | 多次拉同一 event,processed_at 单向 null→timestamp |
-| `assertSseListConsistency(stream, list)` | stream / list 双通道事件集合一致 |
-| `assertSchemaForType(event)` | 按 event type 校验 payload 必填字段(规范来自 SDK 类型 + 实测补丁)|
+| `assertEventLogAppendOnly(events)` | `created_at` 单调不降(**不**校验 id 唯一—— CMA user.* 双相 occurrence 合法,详见 M1 修复)|
+| `assertEventIdsUnique(events)` | 显式 id 唯一(明确单 occurrence 场景用,如纯 agent.* 流)|
+| `assertProcessedAtMonotonic(snapshots)` | 同 id 多 snapshot,`processed_at` 状态机:`null → timestamp → 同一 timestamp`,不能回退到 null(M2 修复)|
+| `assertProcessedAtMonotonicInStream(events)` | 混合 stream 自动 groupByEventId 后逐组跑 `assertProcessedAtMonotonic` |
+| `groupByEventId(events)` | helper:返回 `Map<id, occurrences[]>`,给 UI consolidation / 上面的断言用 |
+| `assertSseListConsistency(stream, list)` | stream / list 双通道事件集合一致(stream ⊆ list)|
+| `assertSchemaForType(event)` | 按 event type 校验 payload 必填字段(Phase 2 实装)|
 | `assertNoSecretLeak(text, knownSecrets)` | 输出文本不含已知 vault secret 字面值 |
 
 ## 7. AWS 接入前置 checklist
