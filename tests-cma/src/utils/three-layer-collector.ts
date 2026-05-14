@@ -100,6 +100,8 @@ export interface SourcedEvent extends CollectedEvent {
   _listSnapshotIndex?: number;
   /** 第几次 send 的 response 包含此 event(只 send-response 有)*/
   _sendCallIndex?: number;
+  /** 第几个 stream connection 看到(只 stream 源有;reconnect 时跨多 connection)*/
+  _streamConnectionIndex?: number;
   /** Wall clock(ms relative to collector start)*/
   _observedAt?: number;
   /** computed payload hash(L1 计算时附加)*/
@@ -191,6 +193,12 @@ export interface ThreeLayerCollector {
   consume(opts?: ConsumeOptions): Promise<SourcedEvent[]>;
   /** 关闭 stream(可选,finalize 会自动调用)*/
   closeStream(): Promise<void>;
+  /**
+   * **§20.4.3/4 reconnect 用** — 关掉当前 stream connection,重新开一个。
+   * L0.stream 会跨多 connection 累积(每个 event 通过 _observedAt + 内部
+   * `_streamConnectionIndex` 区分)。
+   */
+  reopenStream(): Promise<void>;
   /** 计算 L1 + L2 + stats,返回完整 snapshot */
   finalize(): Promise<ThreeLayerSnapshot>;
 }
@@ -216,14 +224,33 @@ export function createThreeLayerCollector(
   let stream: EventsStream | undefined;
   let iter: AsyncIterator<unknown> | undefined;
   let streamClosed = false;
+  /** 当前是第几个 stream connection(reconnect 时 +1)*/
+  let streamConnectionIndex = -1;
 
   const now = () => performance.now() - baseline;
 
   async function openStream(): Promise<void> {
-    if (stream) throw new Error("Stream already opened");
+    if (stream) throw new Error("Stream already opened — use reopenStream() after closeStream()");
     const client = getClient();
     stream = await client.beta.sessions.events.stream(sessionId);
     iter = (stream as AsyncIterable<unknown>)[Symbol.asyncIterator]();
+    streamConnectionIndex += 1;
+  }
+
+  async function reopenStream(): Promise<void> {
+    // §20.4.3 reconnect:关掉当前 stream + reset state + 重 open
+    if (!streamClosed) {
+      // close 当前
+      try {
+        await iter?.return?.();
+      } catch {
+        // ignore
+      }
+    }
+    stream = undefined;
+    iter = undefined;
+    streamClosed = false;
+    await openStream();
   }
 
   async function send(body: SessionsEventsSendBody): Promise<SendCall> {
@@ -302,7 +329,12 @@ export function createThreeLayerCollector(
       if (result.done) break;
       const ev = result.value as CollectedEvent;
       if (!ev || typeof ev !== "object") continue;
-      const sourced: SourcedEvent = { ...ev, _source: "stream", _observedAt: now() };
+      const sourced: SourcedEvent = {
+        ...ev,
+        _source: "stream",
+        _observedAt: now(),
+        _streamConnectionIndex: streamConnectionIndex,
+      };
       L0_stream.push(sourced);
       collected.push(sourced);
       if (typeof ev.type === "string" && stopTypes.has(ev.type)) break;
@@ -313,8 +345,14 @@ export function createThreeLayerCollector(
   async function closeStream(): Promise<void> {
     if (streamClosed) return;
     streamClosed = true;
+    // 防御性超时:某些 SDK / server 状态下 iter.return() 会 hang(eg
+    // 流刚被 reopen 但 server 没数据可发,或 session 已 delete 时 server 不
+    // 主动 close 连接,见 F-0016)。2s 超时让 finalize 总能完成。
     try {
-      await iter?.return?.();
+      await Promise.race([
+        iter?.return?.() ?? Promise.resolve(),
+        new Promise<void>((resolve) => setTimeout(resolve, 2000)),
+      ]);
     } catch {
       // ignore
     }
@@ -394,6 +432,7 @@ export function createThreeLayerCollector(
     listSnapshot,
     consume,
     closeStream,
+    reopenStream,
     finalize,
   };
 }

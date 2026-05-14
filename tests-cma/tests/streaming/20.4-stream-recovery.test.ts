@@ -4,10 +4,9 @@
  * Top 10 优先级 case:
  *   - 20.4.1 stream-first happy path(3 source corpus baseline)
  *   - 20.4.2 send-then-stream race(明知错的顺序,漏哪些事件)
- *   - 20.4.5 三层 collector L0/L1/L2 量化(嵌进 20.4.1,本身需要的 case 不
- *     独立写 — 直接用 20.4.1 corpus 分析)
- *   - 20.4.3 / 20.4.4 reconnect 系列:defer(需要 collector 支持 reconnect,
- *     20.4.1 baseline 落地后再加)
+ *   - 20.4.3 reconnect mid-turn(close stream + list seed + reopen)
+ *   - 20.4.5 三层 collector L0/L1/L2 量化(嵌进 20.4.1 / 20.4.3,
+ *     直接用 corpus 分析)
  *
  * 每个 case → 1 个 corpus scenario(plan §20.2 推荐目录命名)。
  */
@@ -250,6 +249,130 @@ describe("20.4 Stream + List Recovery(Phase 2 Top 10)", () => {
       const listTypes = postList!.events.map((e) => e.type);
       const listOnlyTypes = listTypes.filter((t) => !streamTypes.includes(t));
       console.log("[20.4.2] list-only types(stream 漏掉的 unique types):", [...new Set(listOnlyTypes)]);
+    } finally {
+      await safeArchive(session.id);
+      resetClientCache();
+    }
+  }, 90_000);
+
+  /**
+   * 20.4.3 — reconnect mid-turn(Top 10 #5)。
+   *
+   * 流程:open stream → send user.message → 收到 status_running 就关 stream
+   * → wait 2s(server 继续 emit events 但无 subscriber)→ list seed →
+   * reopen stream → consume rest → finalize → 检查 L1 是否完整恢复。
+   *
+   * 反推:Stream-then-list reconnect 协议是否能 0-loss 恢复;若 L1 缺失某
+   * 事件,说明 list 也漏(可能服务端尚未 flush)或我们的算法有 bug。
+   */
+  it("20.4.3 reconnect mid-turn - L1 recovered feed 完整性", async () => {
+    const client = getClient();
+    await client.ready;
+    const agentId = await getSharedAgentId();
+    const envId = await getSharedEnvironmentId();
+    const session = await client.beta.sessions.create({
+      agent: agentId,
+      environment_id: envId,
+      title: "20.4.3 reconnect",
+    });
+
+    try {
+      const collector = createThreeLayerCollector(session.id, {
+        defaultStopTypes: STOP_TYPES,
+        defaultMaxWaitMs: 30_000,
+      });
+      await collector.openStream();
+      await new Promise((r) => setTimeout(r, 200));
+
+      await collector.send({
+        events: [{ type: "user.message", content: [{ type: "text", text: "Reply 'ok'." }] }],
+      });
+
+      // 早停在 session.status_running — 这是 turn 早期事件,容易抓
+      const earlyEvents = await collector.consume({
+        stopTypes: ["session.status_running"],
+        maxWaitMs: 5_000,
+      });
+      console.log("[20.4.3] early consume (stop at status_running) got:", earlyEvents.map((e) => e.type));
+
+      // 关 stream(模拟中断)
+      await collector.closeStream();
+      const closeTimestamp = performance.now();
+
+      // wait 2s — server 继续 emit events 给"空气"
+      await new Promise((r) => setTimeout(r, 2000));
+
+      // list seed —— 此时 turn 应该接近完成或已完成
+      const seed = await collector.listSnapshot();
+      console.log("[20.4.3] list seed count:", seed.events.length);
+
+      // reopen stream —— 这个 stream 不会 replay,只会接收 reopen 之后新事件
+      await collector.reopenStream();
+
+      // consume rest 直到 idle(maxWaitMs 5s — 若 turn 已结束,可能 timeout 但无所谓)
+      const lateEvents = await collector.consume({ maxWaitMs: 8_000 });
+      console.log("[20.4.3] late consume (after reopen) got:", lateEvents.map((e) => e.type));
+
+      const snapshot = await collector.finalize();
+
+      const dump = await dumpCorpus("reconnect-mid-turn", snapshot, {
+        description:
+          "Top 10 #5 / §20.4.3 — open stream → send → consume until status_running → close stream → wait 2s → list seed → reopen → consume rest。反推:L1 (id, processed_at, payloadHash) recovered feed 是否覆盖完整 turn(stream 漏掉的部分由 list seed 补)。",
+        additionalMeta: {
+          case: "20.4.3",
+          top10: "#5",
+          early_event_count: earlyEvents.length,
+          early_event_types: earlyEvents.map((e) => e.type),
+          close_timestamp_ms: closeTimestamp,
+          list_seed_count: seed.events.length,
+          late_event_count: lateEvents.length,
+          late_event_types: lateEvents.map((e) => e.type),
+        },
+      });
+
+      // ── 信号:L1 完整性 ────────────────────────────────────────────
+      const expectedTurnTypes = [
+        "session.status_running",
+        "session.thread_status_running",
+        "user.message",
+        "span.model_request_start",
+        "agent.message",
+        "span.model_request_end",
+        "session.thread_status_idle",
+        "session.status_idle",
+      ];
+      const l1Types = new Set(snapshot.L1.map((e) => e.type));
+      const missingFromL1 = expectedTurnTypes.filter((t) => !l1Types.has(t));
+      console.log("[20.4.3] L1 type set size:", l1Types.size);
+      console.log("[20.4.3] **L1 missing types(expected but not in L1)**:", missingFromL1);
+
+      // 看每个 event 是从哪条 path 进入 L1 — Stream connection 0 / 1 / list
+      const sourceBreakdown: Record<string, number> = {};
+      for (const e of snapshot.L1) {
+        const key =
+          e._source === "stream"
+            ? `stream(conn${e._streamConnectionIndex})`
+            : (e._source ?? "unknown");
+        sourceBreakdown[key] = (sourceBreakdown[key] ?? 0) + 1;
+      }
+      console.log("[20.4.3] L1 source breakdown:", sourceBreakdown);
+
+      // 哪些 type 只通过 list seed 进 L1(stream 都漏 — 关流期间发出的事件)?
+      const typesOnlyViaList: string[] = [];
+      for (const e of snapshot.L1) {
+        const sameTypeViaStream = snapshot.L1.some(
+          (x) => x.id === e.id && x._source === "stream",
+        );
+        if (e._source === "list" && !sameTypeViaStream) {
+          typesOnlyViaList.push(String(e.type));
+        }
+      }
+      console.log("[20.4.3] **types only recovered via list seed**:", typesOnlyViaList);
+
+      // 断言:至少 status_idle 在 L1(turn 收尾)— 不严格断言 zero-loss,
+      // 因为 list seed timing 可能错过最后几个 event
+      expect(l1Types.has("session.status_idle")).toBe(true);
+      console.log("[20.4.3] corpus:", dump.corpusDir);
     } finally {
       await safeArchive(session.id);
       resetClientCache();
