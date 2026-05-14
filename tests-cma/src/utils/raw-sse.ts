@@ -62,6 +62,13 @@ export interface RawSseLine {
   receivedAt: number;
 }
 
+export type RawSseExitReason =
+  | "stop_type_matched"   // 命中 stopTypes 之一
+  | "server_close"        // 服务端正常关流(reader.done)
+  | "deadline"            // maxWaitMs 到期
+  | "user_abort"          // caller 通过 options.signal 主动 abort
+  | "error";              // 其他异常(已 rethrow 之前 finally 才走这条 — 仅占位)
+
 export interface RawSseRequestMeta {
   /** HTTP status code */
   httpStatus: number;
@@ -77,6 +84,8 @@ export interface RawSseRequestMeta {
   startedAt: number;
   endedAt: number;
   durationMs: number;
+  /** 退出原因 — finding 分析关键字段 */
+  exitReason: RawSseExitReason;
 }
 
 export interface RawSseResult {
@@ -293,10 +302,19 @@ export async function rawSseStream(sessionId: string, options: RawSseOptions = {
 
   const startedAt = performance.now();
   const controller = new AbortController();
+  let exitReason: RawSseExitReason = "server_close"; // default — overridden below
+  let deadlineHit = false;
+  let userAborted = false;
   if (options.signal) {
-    options.signal.addEventListener("abort", () => controller.abort(options.signal!.reason));
+    options.signal.addEventListener("abort", () => {
+      userAborted = true;
+      controller.abort();
+    });
   }
-  const deadlineTimer = setTimeout(() => controller.abort(new Error("rawSseStream deadline")), maxWaitMs);
+  const deadlineTimer = setTimeout(() => {
+    deadlineHit = true;
+    controller.abort();
+  }, maxWaitMs);
   (deadlineTimer as { unref?: () => void }).unref?.();
 
   let response: Response;
@@ -338,6 +356,7 @@ export async function rawSseStream(sessionId: string, options: RawSseOptions = {
         startedAt,
         endedAt,
         durationMs: endedAt - startedAt,
+        exitReason: "server_close",
       },
     };
   }
@@ -350,7 +369,10 @@ export async function rawSseStream(sessionId: string, options: RawSseOptions = {
   try {
     while (!shouldStop) {
       const { value, done } = await reader.read();
-      if (done) break;
+      if (done) {
+        exitReason = "server_close";
+        break;
+      }
       buf += decoder.decode(value, { stream: true });
       // Split on \n(server 可能 \r\n;先 normalize)
       buf = buf.replace(/\r\n/g, "\n");
@@ -368,6 +390,7 @@ export async function rawSseStream(sessionId: string, options: RawSseOptions = {
             const payload = JSON.parse(parsed.fieldValue) as { type?: string };
             if (typeof payload.type === "string" && stopTypes.has(payload.type)) {
               shouldStop = true;
+              exitReason = "stop_type_matched";
               break;
             }
           } catch {
@@ -377,8 +400,12 @@ export async function rawSseStream(sessionId: string, options: RawSseOptions = {
       }
     }
   } catch (err) {
-    // AbortError(deadline / signal)走 finally clearTimeout,不重抛
-    if ((err as Error)?.name !== "AbortError") {
+    // 区分 graceful abort(deadline / user signal)vs 真错
+    if (deadlineHit) {
+      exitReason = "deadline";
+    } else if (userAborted) {
+      exitReason = "user_abort";
+    } else {
       clearTimeout(deadlineTimer);
       throw err;
     }
@@ -412,6 +439,7 @@ export async function rawSseStream(sessionId: string, options: RawSseOptions = {
       startedAt,
       endedAt,
       durationMs: endedAt - startedAt,
+      exitReason,
     },
   };
 }
