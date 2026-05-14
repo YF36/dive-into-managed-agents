@@ -196,22 +196,232 @@ describe("20.6 Action gates(Phase 2 Top 10)", () => {
   }, 120_000);
 
   /**
-   * 20.6.6 — tool_confirmation allow/deny — Top 10 #7,defer。
+   * 20.6.6 — tool_confirmation allow path — Top 10 #7。
    *
-   * 需要先确认 CMA 的 tool confirmation 协议触发方式(declared tool 上加
-   * permissions / 单独工具类型 / agent 配置 confirmation policy)。SDK 类型
-   * 已有 `user.tool_confirmation` event 但触发条件待 follow-up 调研。
+   * 触发机制(2026-05-14 SDK 类型详查找到):
+   *   agent_toolset_20260401 的 default_config.permission_policy = "always_ask"
+   *   → server emit agent.tool_use with evaluated_permission='ask'
+   *   → session.status_idle.stop_reason.event_ids = [tool_use.id]
+   *   → client send user.tool_confirmation { result, tool_use_id, deny_message? }
+   *   → resume
    */
-  it.skip("20.6.6 tool_confirmation allow/deny — defer until CMA confirmation policy clarified", async () => {
-    // SKIP:CMA tool confirmation 触发机制尚未在文档清晰说明。SDK 类型有
-    // user.tool_confirmation event(allow/deny),但 agent 怎么进入"需要
-    // confirmation"状态是个 protocol design question。
-    //
-    // 候选触发方式(未实测):
-    //   (a) agent.tools[i].permissions = { require_user_confirmation: true }
-    //   (b) agent-level config: { auto_confirm: false }
-    //   (c) 特定 tool type(eg destructive built-in)默认需 confirmation
-    //
-    // Phase 2 完成 #6 后,SDK 类型详查 + 文档对照决定怎么写此 case。
-  });
+  it("20.6.6a tool_confirmation allow path - 'ask' policy + client allow → resume", async () => {
+    const client = getClient();
+    await client.ready;
+
+    const agentParams: AgentCreateParams = {
+      name: `cma-test-tool-conf-allow-${Date.now()}`,
+      model: "claude-haiku-4-5",
+      system:
+        "你是一个 shell 助手。当用户让你执行 shell 命令时,**必须**调用 bash 工具。简洁执行,不解释。",
+      description: "20.6.6a tool_confirmation allow agent",
+      tools: [
+        {
+          type: "agent_toolset_20260401",
+          default_config: {
+            enabled: true,
+            permission_policy: { type: "always_ask" },
+          },
+        },
+      ] as AgentCreateParams["tools"],
+      metadata: tagWithRunId(),
+    };
+    const agent = await client.beta.agents.create(agentParams);
+    cleanup.push(async () => {
+      await client.beta.agents.archive(agent.id);
+    });
+
+    const envId = await getSharedEnvironmentId();
+    const session = await client.beta.sessions.create({
+      agent: agent.id,
+      environment_id: envId,
+      title: "20.6.6a confirmation allow",
+      metadata: tagWithRunId(),
+    });
+    cleanup.push(async () => {
+      await client.beta.sessions.archive(session.id);
+    });
+
+    const collector = createThreeLayerCollector(session.id, {
+      defaultStopTypes: STOP_TYPES,
+      defaultMaxWaitMs: 45_000,
+    });
+    await collector.openStream();
+    await new Promise((r) => setTimeout(r, 200));
+
+    // Phase 1:prompt for bash use → expect ask gate
+    await collector.send({
+      events: [
+        { type: "user.message", content: [{ type: "text", text: "Please run: echo hello-world" }] },
+      ],
+    });
+    const phase1 = await collector.consume();
+    console.log("[20.6.6a] phase1 event types:", phase1.map((e) => e.type));
+
+    const toolUse = phase1.find((e) => e.type === "agent.tool_use");
+    const idle1 = phase1.find((e) => e.type === "session.status_idle");
+    const stopReason1 = (idle1 as unknown as { stop_reason?: { type?: string; event_ids?: string[] } } | undefined)?.stop_reason;
+    const evaluatedPermission = (toolUse as unknown as { evaluated_permission?: string } | undefined)?.evaluated_permission;
+
+    console.log("[20.6.6a] tool_use event:", toolUse ? {
+      id: toolUse.id,
+      name: toolUse.name,
+      evaluated_permission: evaluatedPermission,
+    } : null);
+    console.log("[20.6.6a] idle stop_reason:", stopReason1);
+
+    if (!toolUse) {
+      console.log("[20.6.6a] ⚠ model 没调用 tool,跳过 protocol assertions");
+      const snap = await collector.finalize();
+      await dumpCorpus("tool-confirmation-allow-no-tool-call", snap, {
+        description: "20.6.6a allow 模式但 model 没调 bash;corpus 用于 debug",
+        additionalMeta: { case: "20.6.6a", phase1_types: phase1.map((e) => e.type) },
+      });
+      return;
+    }
+
+    // 关键断言:tool_use 携 evaluated_permission='ask'
+    expect(evaluatedPermission).toBe("ask");
+    expect(stopReason1?.type).toBe("requires_action");
+    expect(stopReason1?.event_ids).toContain(toolUse.id);
+
+    // Phase 2:client allow → resume
+    const toolUseId = toolUse.id as string;
+    await collector.send({
+      events: [
+        { type: "user.tool_confirmation", tool_use_id: toolUseId, result: "allow" },
+      ] as Parameters<typeof collector.send>[0]["events"],
+    });
+    const phase2 = await collector.consume();
+    console.log("[20.6.6a] phase2 event types:", phase2.map((e) => e.type));
+
+    const idle2 = phase2.find((e) => e.type === "session.status_idle");
+    const stopReason2 = (idle2 as unknown as { stop_reason?: { type?: string } } | undefined)?.stop_reason;
+    console.log("[20.6.6a] final stop_reason:", stopReason2);
+
+    // tool_result 应在 phase2 出现(allow 后 server 执行 bash)
+    const toolResult = phase2.find((e) => e.type === "agent.tool_result");
+    console.log("[20.6.6a] saw agent.tool_result?", !!toolResult);
+
+    expect(stopReason2?.type).toBe("end_turn");
+
+    const snapshot = await collector.finalize();
+    const dump = await dumpCorpus("tool-confirmation-allow", snapshot, {
+      description:
+        "Top 10 #7 / §20.6.6a — tool_confirmation allow path:agent_toolset_20260401 + permission_policy=always_ask → agent.tool_use{evaluated_permission:'ask'} → status_idle{requires_action, event_ids:[X]} → user.tool_confirmation{result:'allow'} → server 执行 tool → tool_result → end_turn",
+      additionalMeta: {
+        case: "20.6.6a",
+        top10: "#7",
+        tool_use_id: toolUseId,
+        evaluated_permission: evaluatedPermission,
+        stop_reason1: stopReason1,
+        stop_reason2: stopReason2,
+        saw_tool_result: !!toolResult,
+      },
+    });
+    console.log("[20.6.6a] corpus:", dump.corpusDir);
+  }, 120_000);
+
+  /**
+   * 20.6.6b tool_confirmation deny path — 客户端拒绝,agent 应优雅终止 turn。
+   */
+  it("20.6.6b tool_confirmation deny path - 'ask' policy + client deny → agent reacts", async () => {
+    const client = getClient();
+    await client.ready;
+
+    const agent = await client.beta.agents.create({
+      name: `cma-test-tool-conf-deny-${Date.now()}`,
+      model: "claude-haiku-4-5",
+      system:
+        "你是一个 shell 助手。当用户让你执行 shell 命令时,**必须**调用 bash 工具。简洁执行,不解释。",
+      description: "20.6.6b tool_confirmation deny agent",
+      tools: [
+        {
+          type: "agent_toolset_20260401",
+          default_config: {
+            enabled: true,
+            permission_policy: { type: "always_ask" },
+          },
+        },
+      ] as AgentCreateParams["tools"],
+      metadata: tagWithRunId(),
+    });
+    cleanup.push(async () => {
+      await client.beta.agents.archive(agent.id);
+    });
+
+    const envId = await getSharedEnvironmentId();
+    const session = await client.beta.sessions.create({
+      agent: agent.id,
+      environment_id: envId,
+      title: "20.6.6b confirmation deny",
+      metadata: tagWithRunId(),
+    });
+    cleanup.push(async () => {
+      await client.beta.sessions.archive(session.id);
+    });
+
+    const collector = createThreeLayerCollector(session.id, {
+      defaultStopTypes: STOP_TYPES,
+      defaultMaxWaitMs: 45_000,
+    });
+    await collector.openStream();
+    await new Promise((r) => setTimeout(r, 200));
+
+    await collector.send({
+      events: [
+        { type: "user.message", content: [{ type: "text", text: "Please run: echo hello-world" }] },
+      ],
+    });
+    const phase1 = await collector.consume();
+    const toolUse = phase1.find((e) => e.type === "agent.tool_use");
+    if (!toolUse) {
+      console.log("[20.6.6b] ⚠ model 没调用 tool,skip");
+      await collector.finalize();
+      return;
+    }
+
+    // Deny
+    const toolUseId = toolUse.id as string;
+    await collector.send({
+      events: [
+        {
+          type: "user.tool_confirmation",
+          tool_use_id: toolUseId,
+          result: "deny",
+          deny_message: "用户取消了该操作,不要再尝试。",
+        },
+      ] as Parameters<typeof collector.send>[0]["events"],
+    });
+    const phase2 = await collector.consume();
+    console.log("[20.6.6b] phase2 event types:", phase2.map((e) => e.type));
+
+    const idle2 = phase2.find((e) => e.type === "session.status_idle");
+    const stopReason2 = (idle2 as unknown as { stop_reason?: { type?: string } } | undefined)?.stop_reason;
+    console.log("[20.6.6b] final stop_reason:", stopReason2);
+
+    const toolResult = phase2.find((e) => e.type === "agent.tool_result");
+    console.log("[20.6.6b] saw agent.tool_result(应该 NO 因为 denied)?", !!toolResult);
+
+    const agentReply = phase2.find((e) => e.type === "agent.message");
+    console.log("[20.6.6b] saw agent.message after deny?", !!agentReply);
+
+    // turn 应 end(可能 end_turn,可能 agent 再调一次 tool — 取决于 system prompt)
+    expect(stopReason2).toBeDefined();
+
+    const snapshot = await collector.finalize();
+    const dump = await dumpCorpus("tool-confirmation-deny", snapshot, {
+      description:
+        "Top 10 #7 / §20.6.6b — tool_confirmation deny path:client send user.tool_confirmation{result:'deny', deny_message}。验证 agent 如何反应(优雅 end_turn / 重试 / abort)。",
+      additionalMeta: {
+        case: "20.6.6b",
+        top10: "#7",
+        tool_use_id: toolUseId,
+        stop_reason2: stopReason2,
+        saw_tool_result_after_deny: !!toolResult,
+        saw_agent_message_after_deny: !!agentReply,
+      },
+    });
+    console.log("[20.6.6b] corpus:", dump.corpusDir);
+  }, 120_000);
 });
